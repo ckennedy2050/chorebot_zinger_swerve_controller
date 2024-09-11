@@ -15,10 +15,10 @@ import pytest
 from typing import Mapping, List, Tuple
 
 # locals
-from zinger_swerve_controller.control_model import difference_between_angles, normalize_angle, SimpleFourWheelSteeringControlModel
-from zinger_swerve_controller.drive_module import DriveModule
-from zinger_swerve_controller.geometry import Point
-from zinger_swerve_controller.states import BodyMotion, BodyState, DriveModuleMeasuredValues
+from chorebot_zinger_swerve_controller.control_model import difference_between_angles, normalize_angle, SimpleFourWheelSteeringControlModel
+from chorebot_zinger_swerve_controller.drive_module import DriveModule
+from chorebot_zinger_swerve_controller.geometry import Point
+from chorebot_zinger_swerve_controller.states import BodyMotion, BodyState, DriveModuleMeasuredValues
 
 def create_drive_modules(
     length: float = 1.0,

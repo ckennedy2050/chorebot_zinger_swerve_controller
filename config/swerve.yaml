@@ -1,23 +1,23 @@
 swerve_controller:
   ros__parameters:
 
-    robot_base_frame: base_footprint
+    robot_base_frame: chassis_ground_link
 
     twist_topic: cmd_vel
 
     position_controller_name: "drive_module_steering_angle_controller"
     velocity_controller_name: "drive_module_velocity_controller"
 
-    cycle_fequency: 50
+    cycle_frequency: 5
 
     steering_joints:
-      - joint_chassis_to_steering_left_front
-      - joint_chassis_to_steering_right_front
-      - joint_chassis_to_steering_left_rear
-      - joint_chassis_to_steering_right_rear
+      - joint_actuator_servo_front_right
+      - joint_actuator_servo_front_left
+      - joint_actuator_servo_rear_right
+      - joint_actuator_servo_rear_left
 
     drive_joints:
-      - joint_steering_to_wheel_left_front
-      - joint_steering_to_wheel_right_front
-      - joint_steering_to_wheel_left_rear
-      - joint_steering_to_wheel_right_rear
+      - joint_actuator_wheel_front_right
+      - joint_actuator_wheel_front_left
+      - joint_actuator_wheel_rear_right
+      - joint_actuator_wheel_rear_left

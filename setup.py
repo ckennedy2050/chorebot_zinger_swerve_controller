@@ -2,7 +2,7 @@ from glob import glob
 import os
 from setuptools import setup
 
-package_name = 'zinger_swerve_controller'
+package_name = 'chorebot_zinger_swerve_controller'
 
 setup(
     name=package_name,
@@ -25,7 +25,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'swerve_controller = zinger_swerve_controller.swerve_controller:main',
+            'swerve_controller = chorebot_zinger_swerve_controller.swerve_controller:main',
         ],
     },
 )

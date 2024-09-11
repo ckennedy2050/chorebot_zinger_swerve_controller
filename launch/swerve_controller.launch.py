@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -30,7 +32,7 @@ def generate_launch_description():
 
     config = PathJoinSubstitution(
         [
-            FindPackageShare("zinger_swerve_controller"),
+            FindPackageShare("chorebot_zinger_swerve_controller"),
             "config",
             "swerve.yaml",
         ]
@@ -39,7 +41,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             Node(
-                package="zinger_swerve_controller",
+                package="chorebot_zinger_swerve_controller",
                 executable="swerve_controller",
                 name="swerve_controller",
                 parameters=[

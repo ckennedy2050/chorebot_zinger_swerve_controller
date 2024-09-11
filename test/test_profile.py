@@ -15,8 +15,8 @@ import pytest
 from typing import Mapping, List, Tuple
 
 # locals
-from zinger_swerve_controller.errors import InvalidTimeFractionException
-from zinger_swerve_controller.profile import InvalidTimeFractionException, SingleVariableSCurveProfile
+from chorebot_zinger_swerve_controller.errors import InvalidTimeFractionException
+from chorebot_zinger_swerve_controller.profile import InvalidTimeFractionException, SingleVariableSCurveProfile
 
 # SingleVariableSCurveProfile
 

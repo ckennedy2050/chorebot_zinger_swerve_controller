@@ -15,12 +15,12 @@ import pytest
 from typing import Mapping, List, Tuple
 
 # locals
-from zinger_swerve_controller.control_model import DriveModuleDesiredValues, DriveModuleMeasuredValues, BodyMotion, SimpleFourWheelSteeringControlModel
-from zinger_swerve_controller.control_profile import BodyMotionProfile, DriveModuleStateProfile
-from zinger_swerve_controller.drive_module import DriveModule
-from zinger_swerve_controller.errors import IncompleteTrajectoryException
-from zinger_swerve_controller.geometry import Point
-from zinger_swerve_controller.states import BodyState
+from chorebot_zinger_swerve_controller.control_model import DriveModuleDesiredValues, DriveModuleMeasuredValues, BodyMotion, SimpleFourWheelSteeringControlModel
+from chorebot_zinger_swerve_controller.control_profile import BodyMotionProfile, DriveModuleStateProfile
+from chorebot_zinger_swerve_controller.drive_module import DriveModule
+from chorebot_zinger_swerve_controller.errors import IncompleteTrajectoryException
+from chorebot_zinger_swerve_controller.geometry import Point
+from chorebot_zinger_swerve_controller.states import BodyState
 
 def create_drive_modules(
     length: float = 1.0,

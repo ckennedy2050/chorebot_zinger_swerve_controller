@@ -27,25 +27,25 @@ This repository contains different folders for the different parts of the robot 
 * The launch directory contains the launch files
   * [launch/swerve_controller.launch.py](launch/swerve_controller.launch.py) - Launches the controller node.
 * The source code for the swerve controller
-  * [zinger_swerve_controller/control_model.py](zinger_swerve_controller/control_model.py) - Defines the inverse and forward
+  * [zinger_swerve_controller/control_model.py](chorebot_zinger_swerve_controller/control_model.py) - Defines the inverse and forward
     kinematics.
-  * [zinger_swerve_controller/control_profile.py](zinger_swerve_controller/control_profile.py) - Defines the body and module
+  * [zinger_swerve_controller/control_profile.py](chorebot_zinger_swerve_controller/control_profile.py) - Defines the body and module
     motion profiles.
-  * [zinger_swerve_controller/control.py](zinger_swerve_controller/control.py) - Defines the different motion control commands
+  * [zinger_swerve_controller/control.py](chorebot_zinger_swerve_controller/control.py) - Defines the different motion control commands
     that can be specified.
-  * [zinger_swerve_controller/drive_module.py](zinger_swerve_controller/drive_module.py) - Defines the properties for a
+  * [zinger_swerve_controller/drive_module.py](chorebot_zinger_swerve_controller/drive_module.py) - Defines the properties for a
     drive module.
-  * [zinger_swerve_controller/errors.py](zinger_swerve_controller/errors.py) - Defines custom errors.
-  * [zinger_swerve_controller/geometry.py](zinger_swerve_controller/geometry.py) - Defines standard geometry elements.
-  * [zinger_swerve_controller/profile.py](zinger_swerve_controller/profile.py) - Defines the motion control
+  * [zinger_swerve_controller/errors.py](chorebot_zinger_swerve_controller/errors.py) - Defines custom errors.
+  * [zinger_swerve_controller/geometry.py](chorebot_zinger_swerve_controller/geometry.py) - Defines standard geometry elements.
+  * [zinger_swerve_controller/profile.py](chorebot_zinger_swerve_controller/profile.py) - Defines the motion control
     profile that describes how the steering angle and the drive velocity change over time when they are changed from an
     initial value to a target value. The only current implementation is the s-curve motion profile.
-  * [zinger_swerve_controller/states.py](zinger_swerve_controller/states.py) - Defines the data structures used to contain
+  * [zinger_swerve_controller/states.py](chorebot_zinger_swerve_controller/states.py) - Defines the data structures used to contain
     information about the current motion states.
-  * [zinger_swerve_controller/steering_controller.py](zinger_swerve_controller/steering_controller.py) - Responsible
+  * [zinger_swerve_controller/steering_controller.py](chorebot_zinger_swerve_controller/steering_controller.py) - Responsible
     for calculating the steering angles and drive velocities of the modules based on the initial state and the
     desired final state.
-  * [zinger_swerve_controller/swerve_controller.py](zinger_swerve_controller/swerve_controller.py) - The
+  * [zinger_swerve_controller/swerve_controller.py](chorebot_zinger_swerve_controller/swerve_controller.py) - The
     controller that sends the control commands to the different joints in the drive modules. Additionally sends
     the odometry messages.
 
@@ -53,7 +53,7 @@ This repository contains different folders for the different parts of the robot 
 
 ### Models
 
-The [model](zinger_swerve_controller/control_model.py) describes the inverse and forward kinematics. There are many different
+The [model](chorebot_zinger_swerve_controller/control_model.py) describes the inverse and forward kinematics. There are many different
 algorithms available in the literature. At the moment the following algorithms are implemented:
 
 * A [simple kinematics model](https://www.chiefdelphi.com/t/paper-4-wheel-independent-drive-independent-steering-swerve/107383/5)
@@ -151,7 +151,7 @@ of `|A|` which provides a least-squares fit of the values to the available varia
 
 ### Controllers
 
-The [controller](zinger_swerve_controller/multi_wheel_steering_controller.py) is responsible for planning the profile that each
+The [controller](chorebot_zinger_swerve_controller/multi_wheel_steering_controller.py) is responsible for planning the profile that each
 drive module should follow to move the robot from the current movement state to the desired movement state. Currently
 the following controllers are implemented:
 
