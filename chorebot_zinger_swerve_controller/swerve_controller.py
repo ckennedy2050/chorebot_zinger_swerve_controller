@@ -46,7 +46,7 @@ class SwerveController(Node):
 
         self.declare_parameter("position_controller_name", "position_controller")
         self.declare_parameter("velocity_controller_name", "velocity_controller")
-        self.declare_parameter("cycle_frequency", 10)
+        self.declare_parameter("cycle_frequency", 50)
 
         self.declare_parameter("steering_joints",
                                ["joint_actuator_servo_front_right",
@@ -65,7 +65,7 @@ class SwerveController(Node):
         self.last_velocity_command: Twist = None
 
         self.robot_base_link = self.get_parameter("robot_base_frame").value
-
+        """
         # publish the module steering angle
         position_controller_name = self.get_parameter("position_controller_name").value
         steering_angle_publish_topic = "/" + position_controller_name + "/" + "commands"
@@ -97,7 +97,7 @@ class SwerveController(Node):
         self.get_logger().info(
             f'Publishing drive velocity changes on topic "{velocity_publish_topic}"'
         )
-
+        """
         # publish odometry
         odom_topic = "/odom_drive"
         self.odometry_publisher = self.create_publisher(
@@ -479,7 +479,7 @@ class SwerveController(Node):
 
         msg = Odometry()
         msg.header.stamp = self.last_recorded_time.to_msg()
-        msg.header.frame_id = "odom"
+        msg.header.frame_id = "odom_drive"
         msg.child_frame_id = self.robot_base_link
         msg.pose.pose.position.x = body_state.position_in_world_coordinates.x
         msg.pose.pose.position.y = body_state.position_in_world_coordinates.y
@@ -512,7 +512,7 @@ class SwerveController(Node):
     def send_odom_transform(self, odometry_msg: Odometry):
         transform = TransformStamped()
         transform.header.stamp = odometry_msg.header.stamp
-        transform.header.frame_id = "odom"
+        transform.header.frame_id = "odom_drive"
         transform.child_frame_id = self.robot_base_link
         transform.transform.translation.x = odometry_msg.pose.pose.position.x
         transform.transform.translation.y = odometry_msg.pose.pose.position.y
@@ -527,7 +527,7 @@ class SwerveController(Node):
         tf_static_broadcaster = StaticTransformBroadcaster(self)
         transform = TransformStamped()
         transform.header.stamp = self.get_clock().now().to_msg()
-        transform.header.frame_id = "odom"
+        transform.header.frame_id = "odom_drive"
         transform.child_frame_id = self.robot_base_link
         transform.transform.translation.x = 0.0
         transform.transform.translation.y = 0.0
@@ -549,7 +549,7 @@ class SwerveController(Node):
         self.store_time_and_update_controller_time()
 
         # always send out the odometry information
-        self.publish_odometry()
+        #self.publish_odometry()
 
         # Check if we actually have a movement profile to send
         current_time = self.get_clock().now()
@@ -596,6 +596,7 @@ class SwerveController(Node):
             wheel_radius = next((x.wheel_radius for x in self.drive_modules if x.name == a.name), 1.0)
             drive_velocity_values.append(linear_velocity / wheel_radius)
 
+        """
         velocity_msg = Float64MultiArray()
         velocity_msg.data = drive_velocity_values
 
@@ -613,7 +614,7 @@ class SwerveController(Node):
 
         #self.get_logger().info(f'Publishing velocity angle data: "{velocity_msg}"')
         self.drive_module_velocity_publisher.publish(velocity_msg)
-
+        """
 
 
 
