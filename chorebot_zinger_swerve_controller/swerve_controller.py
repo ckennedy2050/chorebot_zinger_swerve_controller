@@ -46,7 +46,7 @@ class SwerveController(Node):
 
         self.declare_parameter("position_controller_name", "position_controller")
         self.declare_parameter("velocity_controller_name", "velocity_controller")
-        self.declare_parameter("cycle_frequency", 50)
+        self.declare_parameter("cycle_frequency", 10)
 
         self.declare_parameter("steering_joints",
                                ["joint_actuator_servo_front_right",
@@ -59,6 +59,10 @@ class SwerveController(Node):
                                 "joint_actuator_wheel_rear_right",
                                 "joint_actuator_wheel_rear_left"])
 
+
+        #self.declare_parameter("motion_estimation_time_span", 1.)
+        self.declare_parameter("motion_estimation_time_span", 0.2)
+        self.motion_time_span = self.get_parameter("motion_estimation_time_span").value
 
         self.get_logger().info(f'Initializing swerve controller ...')
 
@@ -208,9 +212,21 @@ class SwerveController(Node):
 
         # If this twist message is the same as last time, then we don't need to do anything
         if self.last_velocity_command is not None:
+
+            """
+            now_seconds = self.get_clock().now().nanoseconds * 1e-9
+            prev_seconds = self.last_velocity_command_received_at.nanoseconds * 1e-9
+
+            # Cap the velocity based on max acceleration value
+            norm_msg: Twist = cap_velocity_from_max_acceleration(self.last_velocity_command,
+                                                                 msg,
+                                                                 0.2,
+                                                                 now_seconds - prev_seconds)
+            """
+
             if msg.linear.x == self.last_velocity_command.linear.x and \
-                msg.linear.y == self.last_velocity_command.linear.y and \
-                msg.angular.z == self.last_velocity_command.angular.z:
+               msg.linear.y == self.last_velocity_command.linear.y and \
+               msg.angular.z == self.last_velocity_command.angular.z:
 
                 # The last command was the same as the current command. So just ignore it and move on.
                 self.get_logger().info(
@@ -218,6 +234,7 @@ class SwerveController(Node):
                 )
 
                 return
+
 
         self.get_logger().info(
             f'Received a Twist message that is different from the last command. Processing message: "{msg}"'
@@ -232,7 +249,7 @@ class SwerveController(Node):
         self.store_time_and_update_controller_time()
         self.controller.on_desired_state_update(
             BodyMotionCommand(
-                1.0, # THIS SHOULD REALLY BE CALCULATED SOME HOW
+                self.motion_time_span, # THIS SHOULD REALLY BE CALCULATED SOME HOW
                 msg.linear.x,
                 msg.linear.y,
                 msg.angular.z
@@ -254,7 +271,13 @@ class SwerveController(Node):
         wheel_radius = 0.062
         wheel_width = 0.05
 
+        # Steering motor params are not used, only drive motor
+        steering_motor_maximum_velocity = 10.
+        steering_motor_minimum_acceleration = 0.02
+        steering_motor_maximum_acceleration = 1.0
         drive_motor_maximum_velocity = 0.8
+        drive_motor_minimum_acceleration = 0.1
+        drive_motor_maximum_acceleration = 1.0
 
         # store the steering joints
         steering_joint_names = self.get_parameter("steering_joints").value
@@ -283,12 +306,12 @@ class SwerveController(Node):
             steering_axis_xy_position=Point(0.5 * (robot_length - 2 * steering_radius), -0.5 * (robot_width - steering_radius), 0.0),
             wheel_radius=wheel_radius,
             wheel_width=wheel_width,
-            steering_motor_maximum_velocity=10.0,
-            steering_motor_minimum_acceleration=0.1,
-            steering_motor_maximum_acceleration=1.0,
+            steering_motor_maximum_velocity=steering_motor_maximum_velocity,
+            steering_motor_minimum_acceleration=steering_motor_minimum_acceleration,
+            steering_motor_maximum_acceleration=steering_motor_maximum_acceleration,
             drive_motor_maximum_velocity=drive_motor_maximum_velocity,
-            drive_motor_minimum_acceleration=0.1,
-            drive_motor_maximum_acceleration=1.0
+            drive_motor_minimum_acceleration=drive_motor_minimum_acceleration,
+            drive_motor_maximum_acceleration=drive_motor_maximum_acceleration
         )
         drive_modules.append(right_front)
 
@@ -307,12 +330,12 @@ class SwerveController(Node):
             steering_axis_xy_position=Point(0.5 * (robot_length - 2 * steering_radius), 0.5 * (robot_width - steering_radius), 0.0),
             wheel_radius=wheel_radius,
             wheel_width=wheel_width,
-            steering_motor_maximum_velocity=10.0,
-            steering_motor_minimum_acceleration=0.1,
-            steering_motor_maximum_acceleration=1.0,
+            steering_motor_maximum_velocity=steering_motor_maximum_velocity,
+            steering_motor_minimum_acceleration=steering_motor_minimum_acceleration,
+            steering_motor_maximum_acceleration=steering_motor_maximum_acceleration,
             drive_motor_maximum_velocity=drive_motor_maximum_velocity,
-            drive_motor_minimum_acceleration=0.1,
-            drive_motor_maximum_acceleration=1.0
+            drive_motor_minimum_acceleration=drive_motor_minimum_acceleration,
+            drive_motor_maximum_acceleration=drive_motor_maximum_acceleration
         )
         drive_modules.append(left_front)
 
@@ -331,12 +354,12 @@ class SwerveController(Node):
             steering_axis_xy_position=Point(-0.5 * (robot_length - 2 * steering_radius), -0.5 * (robot_width - steering_radius), 0.0),
             wheel_radius=wheel_radius,
             wheel_width=wheel_width,
-            steering_motor_maximum_velocity=10.0,
-            steering_motor_minimum_acceleration=0.1,
-            steering_motor_maximum_acceleration=1.0,
+            steering_motor_maximum_velocity=steering_motor_maximum_velocity,
+            steering_motor_minimum_acceleration=steering_motor_minimum_acceleration,
+            steering_motor_maximum_acceleration=steering_motor_maximum_acceleration,
             drive_motor_maximum_velocity=drive_motor_maximum_velocity,
-            drive_motor_minimum_acceleration=0.1,
-            drive_motor_maximum_acceleration=1.0
+            drive_motor_minimum_acceleration=drive_motor_minimum_acceleration,
+            drive_motor_maximum_acceleration=drive_motor_maximum_acceleration
         )
         drive_modules.append(right_rear)
 
@@ -355,12 +378,12 @@ class SwerveController(Node):
             steering_axis_xy_position=Point(-0.5 * (robot_length - 2 * steering_radius), 0.5 * (robot_width - steering_radius), 0.0),
             wheel_radius=wheel_radius,
             wheel_width=wheel_width,
-            steering_motor_maximum_velocity=10.0,
-            steering_motor_minimum_acceleration=0.1,
-            steering_motor_maximum_acceleration=1.0,
+            steering_motor_maximum_velocity=steering_motor_maximum_velocity,
+            steering_motor_minimum_acceleration=steering_motor_minimum_acceleration,
+            steering_motor_maximum_acceleration=steering_motor_maximum_acceleration,
             drive_motor_maximum_velocity=drive_motor_maximum_velocity,
-            drive_motor_minimum_acceleration=0.1,
-            drive_motor_maximum_acceleration=1.0
+            drive_motor_minimum_acceleration=drive_motor_minimum_acceleration,
+            drive_motor_maximum_acceleration=drive_motor_maximum_acceleration
         )
         drive_modules.append(left_rear)
 
@@ -573,7 +596,9 @@ class SwerveController(Node):
             # )
             return
 
-        next_time_step = current_time.nanoseconds * 1e-9 + 1.0 / self.cycle_time_in_hertz
+        # CK
+        next_time_step = current_time.nanoseconds * 1e-9 + 1.0  / self.cycle_time_in_hertz
+        #next_time_step = current_time.nanoseconds * 1e-9 + self.motion_time_span / self.cycle_time_in_hertz
         # self.get_logger().debug(
         #     'Calculating next step in profile at time {} s'.format(next_time_step)
         # )
@@ -621,7 +646,7 @@ class SwerveController(Node):
         ################################################################################################################
         # CK
         steering_angle_values_deg = [math.degrees(a) for a in steering_angle_values]
-        # print(f'steering angles: {steering_angle_values_deg}')
+        #print(f'steering angles: {steering_angle_values_deg}')
         # Retain last angle if inf
         for i in range(0, len(steering_angle_values_deg)):
             if math.isinf(steering_angle_values_deg[i]):
@@ -630,7 +655,7 @@ class SwerveController(Node):
         self.last_steering_angle_values = steering_angle_values
 
         # Scale the outgoing velocity values
-        vel_scalar = 80.
+        vel_scalar = 100.
         drive_velocity_values = [v * vel_scalar for v in drive_velocity_values]
 
 
@@ -667,6 +692,45 @@ class SwerveController(Node):
         # Publish the message to the topic
         self.joint_command_publisher.publish(joint_state)
 
+
+def cap_velocity_from_max_acceleration(prev_msg: Twist, curr_msg: Twist, max_accel: float, dt: float) -> Twist:
+    """
+    Limits the velocity components of the current Twist message to a maximum acceleration.
+
+    :param prev_msg: Previous Twist message containing the last commanded velocities.
+    :param curr_msg: Current Twist message containing the desired velocities.
+    :param max_accel: Maximum allowable acceleration (linear and angular).
+    :param dt: Time elapsed between the previous and current message (in seconds).
+    :return: New Twist message with limited velocities based on the maximum acceleration.
+    """
+    # Create a new Twist message for the limited velocities
+    limited_msg = Twist()
+
+    # Calculate the maximum change in velocity allowed (acceleration * time)
+    max_delta_v = max_accel * dt
+
+    # Limit linear velocity in X
+    delta_vx = curr_msg.linear.x - prev_msg.linear.x
+    if abs(delta_vx) > max_delta_v:
+        limited_msg.linear.x = prev_msg.linear.x + math.copysign(max_delta_v, delta_vx)
+    else:
+        limited_msg.linear.x = curr_msg.linear.x
+
+    # Limit linear velocity in Y
+    delta_vy = curr_msg.linear.y - prev_msg.linear.y
+    if abs(delta_vy) > max_delta_v:
+        limited_msg.linear.y = prev_msg.linear.y + math.copysign(max_delta_v, delta_vy)
+    else:
+        limited_msg.linear.y = curr_msg.linear.y
+
+    # Limit angular velocity in Z
+    delta_vz = curr_msg.angular.z - prev_msg.angular.z
+    if abs(delta_vz) > max_delta_v:
+        limited_msg.angular.z = prev_msg.angular.z + math.copysign(max_delta_v, delta_vz)
+    else:
+        limited_msg.angular.z = curr_msg.angular.z
+
+    return limited_msg
 
 def main(args=None):
     rclpy.init(args=args)

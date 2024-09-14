@@ -35,6 +35,33 @@ def normalize_angle(angle_in_radians: float) -> float:
 
     return angle
 
+def normalize_angle_drive(angle_in: float) -> (float, bool):
+    """ reduce the angle to [-pi/2, pi/2] """
+    angle = normalize_angle(angle_in)
+    # Now angle is in [-2pi, 2pi]
+
+    if abs(angle) <= math.pi/2:
+        # Angle in quadrant 1 or 4, leave it alone
+        return angle, False
+
+    if angle > math.pi/2:
+        # angle is positive
+        if angle <= 3*math.pi/2:
+            # pos angle in quadrant 2 or 3, reverse it
+            return angle - math.pi, True
+        else:
+            # pos angle in 4th quadrant, make negative but no dir flip
+            return angle - 2*math.pi, False
+    else:
+        # angle is negative
+        if angle >= -3*math.pi/2:
+            # neg angle in quadrant 2 or 3, reverse it
+            return angle + math.pi, True
+        else:
+            # neg angle in 1st quadrant, make positive but no dir flip
+            return angle + 2*math.pi, False
+
+
 def difference_between_angles(starting_angle_in_radians: float, ending_angle_in_radians: float) -> float:
     normalized_start = normalize_angle(starting_angle_in_radians)
     normalized_end = normalize_angle(ending_angle_in_radians)
@@ -197,7 +224,17 @@ class SimpleFourWheelSteeringControlModel(ControlModelBase):
                 # If other wheels aren't moving then maybe we're at a stop
                 #
                 # In either case we just keep the position of the wheel where it was
-                forward_steering_angle = float('infinity')
+                forward_state = DriveModuleDesiredValues(
+                    self.modules[i].name,
+                    float('infinity'),
+                    0.,
+                    )
+                reverse_state = DriveModuleDesiredValues(
+                    self.modules[i].name,
+                    float('-infinity'),
+                    0.,
+                    )
+
             else:
                 # Calculate the position of the drive wheel.
                 #
@@ -223,25 +260,62 @@ class SimpleFourWheelSteeringControlModel(ControlModelBase):
                     else:
                         forward_steering_angle = cos_angle
 
-                forward_steering_angle = normalize_angle(forward_steering_angle)
+                #print(f'{self.modules[i].name}::')
+                #print(f'  forward angle: {math.degrees(forward_steering_angle)}  cos: {math.degrees(cos_angle)} sin: {math.degrees(sin_angle)}')
 
+
+                if math.isclose(abs(forward_steering_angle), math.pi, abs_tol=1e-2, rel_tol=1e-2):
+                    # Angle is close to pi; forward and backward velocities are valid
+                    forward_state = DriveModuleDesiredValues(
+                        self.modules[i].name,
+                        forward_steering_angle,
+                        drive_velocity * normalization_factor,
+                        )
+
+                    reverse_state = DriveModuleDesiredValues(
+                        self.modules[i].name,
+                        -forward_steering_angle,
+                        -1.0 * drive_velocity * normalization_factor,
+                        )
+                else:
+                    norm_steering_angle, dir_flip = normalize_angle_drive(forward_steering_angle)
+                    #print(f'  norm angle: {math.degrees(norm_steering_angle)}')
+
+                    if not dir_flip:
+                        # No sign flip; drive_velocity is valid as-is
+                        forward_state = DriveModuleDesiredValues(
+                            self.modules[i].name,
+                            norm_steering_angle,
+                            drive_velocity * normalization_factor,
+                            )
+                        reverse_state = forward_state
+                    else:
+                        # We had a sign flip; reverse drive_velocity is valid
+                        reverse_state = DriveModuleDesiredValues(
+                            self.modules[i].name,
+                            norm_steering_angle,
+                            -1.0 * drive_velocity * normalization_factor,
+                            )
+                        forward_state = reverse_state
+
+            """
             if not math.isinf(forward_steering_angle):
-                reverse_steering_angle = normalize_angle(forward_steering_angle + math.pi)
+                reverse_steering_angle = normalize_angle_drive(forward_steering_angle + math.pi)
             else:
                 reverse_steering_angle = float("-infinity")
 
-            name = self.modules[i].name
             forward_state = DriveModuleDesiredValues(
-                name,
+                self.modules[i].name,
                 forward_steering_angle,
                 drive_velocity * normalization_factor,
             )
 
             reverse_state = DriveModuleDesiredValues(
-                name,
+                self.modules[i].name,
                 reverse_steering_angle,
                 -1.0 * drive_velocity * normalization_factor,
             )
+            """
             result.append((forward_state, reverse_state))
 
         return result
