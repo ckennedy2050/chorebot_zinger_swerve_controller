@@ -229,16 +229,16 @@ class SwerveController(Node):
                msg.angular.z == self.last_velocity_command.angular.z:
 
                 # The last command was the same as the current command. So just ignore it and move on.
-                self.get_logger().info(
-                    f'Received a Twist message that is the same as the last message. Taking no action. Message was: "{msg}"'
-                )
+                # self.get_logger().info(
+                #     f'Received a Twist message that is the same as the last message. Taking no action. Message was: "{msg}"'
+                # )
 
                 return
 
 
-        self.get_logger().info(
-            f'Received a Twist message that is different from the last command. Processing message: "{msg}"'
-        )
+        # self.get_logger().info(
+        #     f'Received a Twist message that is different from the last command. Processing message: "{msg}"'
+        # )
 
         # When we get a stream of command it is possible that each command is slightly different (looking at you ROS2 nav)
         # This means we reset the starting time of the change profile each time, which starts the process all over

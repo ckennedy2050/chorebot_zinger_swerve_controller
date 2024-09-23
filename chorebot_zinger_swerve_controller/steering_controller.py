@@ -148,6 +148,9 @@ class ModuleFollowsBodySteeringController():
                 first_state_velocity_difference = states_for_module[0].drive_velocity_in_meters_per_second - current_velocity
                 second_state_velocity_difference = states_for_module[1].drive_velocity_in_meters_per_second - current_velocity
 
+                # print(f'First state diffs (rot,vel): {first_state_rotation_difference} / {first_state_velocity_difference}')
+                # print(f'Second state diffs (rot,vel): {second_state_rotation_difference} / {second_state_velocity_difference}')
+
                 # Possibilities:
                 # - first velocity change and first orientation change are the smallest -> pick the first state
                 # - second velocity change and second orientation change are the smallest -> pick the second state

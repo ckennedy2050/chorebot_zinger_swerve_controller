@@ -263,24 +263,24 @@ class SimpleFourWheelSteeringControlModel(ControlModelBase):
                 #print(f'{self.modules[i].name}::')
                 #print(f'  forward angle: {math.degrees(forward_steering_angle)}  cos: {math.degrees(cos_angle)} sin: {math.degrees(sin_angle)}')
 
+                norm_steering_angle, dir_flip = normalize_angle_drive(forward_steering_angle)
+                #print(f'  norm angle: {math.degrees(norm_steering_angle)}')
 
-                if math.isclose(abs(forward_steering_angle), math.pi, abs_tol=1e-2, rel_tol=1e-2):
-                    # Angle is close to pi; forward and backward velocities are valid
+
+                if math.isclose(abs(norm_steering_angle), math.pi/2., abs_tol=1e-2, rel_tol=1e-2):
+                    # Angle is close to pi/2; forward and backward velocities are valid
                     forward_state = DriveModuleDesiredValues(
                         self.modules[i].name,
-                        forward_steering_angle,
+                        norm_steering_angle,
                         drive_velocity * normalization_factor,
                         )
 
                     reverse_state = DriveModuleDesiredValues(
                         self.modules[i].name,
-                        -forward_steering_angle,
+                        -norm_steering_angle,
                         -1.0 * drive_velocity * normalization_factor,
                         )
                 else:
-                    norm_steering_angle, dir_flip = normalize_angle_drive(forward_steering_angle)
-                    #print(f'  norm angle: {math.degrees(norm_steering_angle)}')
-
                     if not dir_flip:
                         # No sign flip; drive_velocity is valid as-is
                         forward_state = DriveModuleDesiredValues(
