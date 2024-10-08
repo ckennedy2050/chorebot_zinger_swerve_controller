@@ -12,6 +12,8 @@
 
 from typing import List
 import math
+
+import numpy as np
 import rclpy
 from rclpy.clock import Clock, Time
 from rclpy.duration import Duration as TimeDuration
@@ -63,6 +65,9 @@ class SwerveController(Node):
         #self.declare_parameter("motion_estimation_time_span", 1.)
         self.declare_parameter("motion_estimation_time_span", 0.2)
         self.motion_time_span = self.get_parameter("motion_estimation_time_span").value
+
+        self.declare_parameter("new_motion_tolerance", 0.01)
+        self.new_motion_tolerance = self.get_parameter("new_motion_tolerance").value
 
         self.get_logger().info(f'Initializing swerve controller ...')
 
@@ -224,14 +229,23 @@ class SwerveController(Node):
                                                                  now_seconds - prev_seconds)
             """
 
-            if msg.linear.x == self.last_velocity_command.linear.x and \
-               msg.linear.y == self.last_velocity_command.linear.y and \
-               msg.angular.z == self.last_velocity_command.angular.z:
 
-                # The last command was the same as the current command. So just ignore it and move on.
-                # self.get_logger().info(
-                #     f'Received a Twist message that is the same as the last message. Taking no action. Message was: "{msg}"'
-                # )
+            last_array = np.array([self.last_velocity_command.linear.x, self.last_velocity_command.linear.y, self.last_velocity_command.angular.z])
+            msg_array = np.array([msg.linear.x, msg.linear.y, msg.angular.z])
+
+            any_new_zero = np.any((msg_array == 0.) & (last_array != 0.))
+
+            if np.allclose(last_array, msg_array, atol=self.new_motion_tolerance) and not any_new_zero:
+
+
+                # if msg.linear.x == self.last_velocity_command.linear.x and \
+                #    msg.linear.y == self.last_velocity_command.linear.y and \
+                #    msg.angular.z == self.last_velocity_command.angular.z:
+
+                    # The last command was the same as the current command. So just ignore it and move on.
+                    # self.get_logger().info(
+                    #     f'Received a Twist message that is the same as the last message. Taking no action. Message was: "{msg}"'
+                    # )
 
                 return
 
