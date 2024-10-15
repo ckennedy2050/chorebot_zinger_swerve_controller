@@ -63,11 +63,14 @@ class SwerveController(Node):
 
 
         #self.declare_parameter("motion_estimation_time_span", 1.)
-        self.declare_parameter("motion_estimation_time_span", 0.2)
+        self.declare_parameter("motion_estimation_time_span", 0.25)
         self.motion_time_span = self.get_parameter("motion_estimation_time_span").value
 
         self.declare_parameter("new_motion_tolerance", 0.01)
         self.new_motion_tolerance = self.get_parameter("new_motion_tolerance").value
+
+        # CK
+        self.declare_parameter("max_body_angular_acceleration", 1.3)
 
         self.get_logger().info(f'Initializing swerve controller ...')
 
@@ -146,7 +149,9 @@ class SwerveController(Node):
         # registered
         self.get_logger().info(f'Storing drive module information...')
         self.drive_modules = self.get_drive_modules()
-        self.controller = ModuleFollowsBodySteeringController(self.drive_modules, self.get_motion_profile, self.write_log)
+        self.controller = ModuleFollowsBodySteeringController(self.drive_modules, self.get_motion_profile,
+                                                              self.get_parameter("max_body_angular_acceleration").value,
+                                                              self.write_log)
 
         # initialize the time tracking variables after we get the controller up and running
         # so that we can initialize the controller at the same time.
@@ -193,7 +198,7 @@ class SwerveController(Node):
         self.joint_command_publisher = self.create_publisher(JointState, "joint_command", 10)
         self.steering_joint_names = self.get_parameter("steering_joints").value
         self.drive_joint_names = self.get_parameter("drive_joints").value
-        self.last_steering_angle_values = [0.] * len(self.steering_joint_names)
+        self.last_steering_angle_values_deg = [0.] * len(self.steering_joint_names)
 
         # Finally listen to the cmd_vel topic for movement commands. We could have a message incoming
         # at any point after we register so we set this subscription up last.
@@ -289,7 +294,7 @@ class SwerveController(Node):
         steering_motor_maximum_velocity = 10.
         steering_motor_minimum_acceleration = 0.02
         steering_motor_maximum_acceleration = 1.0
-        drive_motor_maximum_velocity = 0.8
+        drive_motor_maximum_velocity = 0.6
         drive_motor_minimum_acceleration = 0.1
         drive_motor_maximum_acceleration = 1.0
 
@@ -604,15 +609,17 @@ class SwerveController(Node):
         #     'Current trajectory duration {} s'.format(running_duration_as_float)
         # )
 
-        if running_duration_as_float > self.controller.min_time_for_profile:
+        #if running_duration_as_float > self.controller.min_time_for_profile:
+        if running_duration_as_float > self.controller.min_time_for_profile + 1. / self.cycle_time_in_hertz and \
+                not self.controller.had_illegal_rotation:
             # self.get_logger().debug(
             #     'Trajectory completed waiting for next command.'
             # )
             return
 
         # CK
-        next_time_step = current_time.nanoseconds * 1e-9 + 1.0  / self.cycle_time_in_hertz
-        #next_time_step = current_time.nanoseconds * 1e-9 + self.motion_time_span / self.cycle_time_in_hertz
+        #next_time_step = current_time.nanoseconds * 1e-9 + 1.0  / self.cycle_time_in_hertz
+        next_time_step = current_time.nanoseconds * 1e-9 + self.motion_time_span / self.cycle_time_in_hertz
         # self.get_logger().debug(
         #     'Calculating next step in profile at time {} s'.format(next_time_step)
         # )
@@ -661,12 +668,12 @@ class SwerveController(Node):
         # CK
         steering_angle_values_deg = [math.degrees(a) for a in steering_angle_values]
         #print(f'steering angles: {steering_angle_values_deg}')
-        # Retain last angle if inf
+        # Retain last angle if infinite
         for i in range(0, len(steering_angle_values_deg)):
-            if math.isinf(steering_angle_values_deg[i]):
-                steering_angle_values_deg[i] = self.last_steering_angle_values[i]
+            if not math.isfinite(steering_angle_values_deg[i]):
+                steering_angle_values_deg[i] = self.last_steering_angle_values_deg[i]
 
-        self.last_steering_angle_values = steering_angle_values
+        self.last_steering_angle_values_deg = steering_angle_values_deg
 
         # Scale the outgoing velocity values
         vel_scalar = 100.

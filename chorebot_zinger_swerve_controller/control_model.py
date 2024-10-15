@@ -131,7 +131,7 @@ class SimpleFourWheelSteeringControlModel(ControlModelBase):
         self.forward_kinematics_matrix = pinv(self.inverse_kinematics_matrix)
 
     # Forward kinematics
-    def body_motion_from_wheel_module_states(self, states: List[DriveModuleMeasuredValues]) -> BodyMotion:
+    def body_motion_from_wheel_module_states(self, states: List[DriveModuleMeasuredValues] | List[DriveModuleDesiredValues]) -> BodyMotion:
         # To calculate the body state from the module state we need to invert the state equation. Because the state matrix
         # isn't square we can't use the normal matrix inverse, instead we use the pseudo-inverse. This gets us
         #
@@ -203,6 +203,7 @@ class SimpleFourWheelSteeringControlModel(ControlModelBase):
             if not math.isclose(drive_velocity, 0.0, rel_tol=1e-15, abs_tol=1e-15):
                 scale = self.modules[i].drive_motor_maximum_velocity / drive_velocity
                 scale = scale if (scale < 1.0) else 1.0
+                #print(f'Scale: {scale}')
             else:
                 scale = 1.0
             scales.append(scale)

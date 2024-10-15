@@ -9,7 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import itertools
 import math
 
 from typing import Callable, List
@@ -29,16 +29,31 @@ class DriveModuleDesiredValuesProfilePoint():
         self.time_since_start_of_profile = time
         self.drive_module_states = drive_module_states
 
+
+# CK
+#
+# Constants (should be parameters)
+#
+# If wheel module steering angle > than this value and robot is not stopped, stop robot before commanding angle (radians)
+ILLEGAL_WHEEL_ROTATION_THRESHOLD = math.pi / 2.
+# Wheel module is considered stopped if abs velocity < this value (m/s)
+STOPPED_EPSILON = 0.1
+# If either body velocities are <= to these values, don't impose acceleration scaling (m/s)
+MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD = 0.15
+MIN_ANGULAR_VELOCITY_SAFETY_THRESHOLD = 0.13
+
 class ModuleFollowsBodySteeringController():
 
     def __init__(
             self,
             drive_modules: List[DriveModule],
             motion_profile_func: Callable[[float, float], TransientVariableProfile],
+            max_angular_acceleration: float,
             logger: Callable[[str], None]):
         # Get the geometry for the robot
         self.modules = drive_modules
         self.motion_profile_func = motion_profile_func
+        self.max_angular_acceleration = max_angular_acceleration
         self.logger = logger
 
         # Use a simple control model for the time being. Just need something that roughly works
@@ -105,6 +120,8 @@ class ModuleFollowsBodySteeringController():
         # flags
         self.is_executing_body_profile: bool = False
         self.is_executing_module_profile: bool = False
+        # CK
+        self.had_illegal_rotation: bool = False
 
     def body_state_at_current_time(self) -> BodyState:
         return self.body_state
@@ -120,6 +137,33 @@ class ModuleFollowsBodySteeringController():
         result: List[DriveModuleDesiredValues] = []
         if self.is_executing_body_profile:
             body_state = self.body_profile.body_motion_at(time_fraction)
+
+            ###### CK
+            # Logic for imposing acceleration scaling
+            if abs(body_state.angular_acceleration.z) > self.max_angular_acceleration and \
+                    (abs(body_state.linear_velocity.x) > MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD or
+                     abs(body_state.linear_velocity.y) > MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD ) and \
+                    abs(body_state.angular_velocity.z) > MIN_ANGULAR_VELOCITY_SAFETY_THRESHOLD:
+                accel_scalar = abs(self.max_angular_acceleration / (2. * body_state.angular_acceleration.z))
+                self.logger(f'Body angular acceleration {body_state.angular_acceleration.z} too high, scaling velocity by {accel_scalar}')
+                #self.logger(f'  Cur Body: - vx:{body_state.linear_velocity.x}, vy: {body_state.linear_velocity.y}, vo: {body_state.angular_velocity.z}')
+                body_state.linear_velocity.x *= accel_scalar
+                body_state.linear_velocity.y *= accel_scalar
+                body_state.angular_velocity.z *= accel_scalar
+                #self.logger(f'  New Body: - vx:{body_state.linear_velocity.x}, vy: {body_state.linear_velocity.y}, vo: {body_state.angular_velocity.z}')
+
+
+            # If we previously had an illegal rotation, check current velocity of each drive module
+            stopped = True
+            m: DriveModuleMeasuredValues
+            #print('Post illegal module velocities: ' +  str([m.drive_velocity_in_module_coordinates.x for m in self.module_states]))
+            for m in self.module_states:
+                if not math.isclose(m.drive_velocity_in_module_coordinates.x, 0., abs_tol=STOPPED_EPSILON):
+                    stopped = False
+
+            self.had_illegal_rotation = False
+            ######
+
             drive_module_desired_values = self.control_model.state_of_wheel_modules_from_body_motion(body_state)
             for i in range(len(self.modules)):
                 # Wheels are moving. We don't know what kind of movement yet though, so figure out if:
@@ -157,6 +201,14 @@ class ModuleFollowsBodySteeringController():
                 # - first velocity change is larger and second orientation change is larger -> Bad state. Pick the one with the least relative change?
 
                 if abs(first_state_rotation_difference) <= abs(second_state_rotation_difference):
+                    # CK
+                    if abs(first_state_rotation_difference) > ILLEGAL_WHEEL_ROTATION_THRESHOLD:
+                        #self.had_illegal_rotation = True
+                        self.had_illegal_rotation = not stopped
+                        self.logger(f'Big rotation {math.degrees(first_state_rotation_difference)} for {states_for_module[0].name} - Illegal: {self.had_illegal_rotation}')
+
+                    #print(f'{states_for_module[0].name} Diff: {math.degrees(first_state_rotation_difference)}')
+
                     if abs(first_state_velocity_difference) <= abs(second_state_velocity_difference):
                         # first rotation and velocity change are the smallest, so take the first state
                         result.append(states_for_module[0])
@@ -203,6 +255,13 @@ class ModuleFollowsBodySteeringController():
                             #     )
                             # )
                 else:
+                    # CK
+                    if abs(second_state_rotation_difference) > ILLEGAL_WHEEL_ROTATION_THRESHOLD:
+                        #self.had_illegal_rotation = True
+                        self.had_illegal_rotation = not stopped
+                        self.logger(f'Big rotation {math.degrees(second_state_rotation_difference)} for {states_for_module[0].name} - Illegal: {self.had_illegal_rotation}')
+                    #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)}')
+
                     if abs(second_state_velocity_difference) <= abs(first_state_velocity_difference):
                         # second rotation and velocity change are the smallest, so take the second state
                         result.append(states_for_module[1])
@@ -248,6 +307,19 @@ class ModuleFollowsBodySteeringController():
                             #         states_for_module[1].drive_velocity_in_meters_per_second
                             #     )
                             # )
+
+
+
+            if self.had_illegal_rotation:
+                #for desired_value in result:
+                for i in range(len(self.modules)):
+                    #print(f'  {desired_value.name} vel: {desired_value.drive_velocity_in_meters_per_second}')
+                    # If illegal, we command a full stop of the drive motors, and retain current steering angle
+                    current_steering_angle = self.module_states[i].orientation_in_body_coordinates.z
+                    desired_state = result[i]
+                    desired_state.steering_angle_in_radians = current_steering_angle
+                    desired_state.drive_velocity_in_meters_per_second = 0.
+
         else:
             for drive_module in self.modules:
                 state = self.module_profile_from_command.value_for_module_at(drive_module.name, time_fraction)
@@ -395,6 +467,10 @@ class ModuleFollowsBodySteeringController():
             local_x_acceleration = (body_motion.linear_velocity.x - self.body_state.motion_in_body_coordinates.linear_velocity.x) / time_step_in_seconds
             local_y_acceleration = (body_motion.linear_velocity.y - self.body_state.motion_in_body_coordinates.linear_velocity.y) / time_step_in_seconds
             orientation_acceleration = (body_motion.angular_velocity.z - self.body_state.motion_in_body_coordinates.angular_velocity.z) / time_step_in_seconds
+
+        # print('Body:')
+        # print(f'   vel - vx: {body_motion.linear_velocity.x}, vy: {body_motion.linear_velocity.y}, vo: {body_motion.angular_velocity.z}')
+        # print(f'   accel - ax: {local_x_acceleration}, ay: {local_y_acceleration}, ao: {orientation_acceleration}')
 
         # Jerk
         local_x_jerk = 0.0

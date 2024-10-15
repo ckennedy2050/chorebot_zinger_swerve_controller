@@ -9,6 +9,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
 import math
 from typing import Tuple
@@ -80,6 +81,30 @@ class DriveModuleDesiredValues(object):
         self.name = name
         self.steering_angle_in_radians = steering_angle_in_radians
         self.drive_velocity_in_meters_per_second = drive_velocity_in_meters_per_second
+
+    ### CK ###
+    def get_direction_components(self, use_magnitude=True) -> Tuple[float, float]:
+        assert math.isfinite(self.steering_angle_in_radians), 'Steering angle must be finite'
+
+        if use_magnitude:
+            mag = self.drive_velocity_in_meters_per_second
+        else:
+            mag = math.copysign(1, self.drive_velocity_in_meters_per_second)
+
+        x = mag * math.cos(self.steering_angle_in_radians)
+        y = mag * math.sin(self.steering_angle_in_radians)
+        return x, y
+
+    def direction_dist(self, other: DriveModuleDesiredValues) -> float:
+        dir1 = self.get_direction_components(False)
+        dir2 = other.get_direction_components(False)
+        return math.sqrt((dir1[0] - dir2[0]) ** 2 + (dir1[1] - dir2[1]) ** 2)
+
+    def xy_drive_velocity(self) -> Tuple[float, float]:
+        v_x = self.drive_velocity_in_meters_per_second * math.cos(self.steering_angle_in_radians)
+        v_y = self.drive_velocity_in_meters_per_second * math.sin(self.steering_angle_in_radians)
+
+        return v_x, v_y
 
 class DriveModuleMeasuredValues(object):
 
