@@ -473,42 +473,47 @@ class SwerveController(Node):
 
 
         measured_drive_states: List[DriveModuleMeasuredValues] = []
+        updated_value = False
         for index, drive_module in enumerate(self.drive_modules):
-            if drive_module.steering_link_name in joint_names and drive_module.driving_link_name in joint_names:
+            if drive_module.steering_link_name in joint_names:
                 steering_values_index = joint_names.index(drive_module.steering_link_name)
-                drive_values_index = joint_names.index(drive_module.driving_link_name)
+                steering_pos = joint_positions[steering_values_index]
+                steering_vel = joint_velocities[steering_values_index]
+                updated_value = True
 
-                value = DriveModuleMeasuredValues(
-                    drive_module.name,
-                    drive_module.steering_axis_xy_position.x,
-                    drive_module.steering_axis_xy_position.y,
-                    joint_positions[steering_values_index],
-                    joint_velocities[steering_values_index],
-                    0.0,
-                    0.0,
-                    joint_velocities[drive_values_index] * drive_module.wheel_radius,
-                    0.0,
-                    0.0
-                )
-                measured_drive_states.append(value)
-
-                # self.get_logger().info(
-                #     f'Updating joint states for: "{drive_module.name}" with: ' +
-                #     f'[ steering angle: "{value.orientation_in_body_coordinates.z}", ' +
-                #     f' steering velocity: "{value.orientation_velocity_in_body_coordinates.z}",' +
-                #     f' velocity: "{value.drive_velocity_in_module_coordinates.x}" ] '
-                # )
             else:
-                # grab the previous state and just assume that's the one
-                value = self.last_drive_module_state[index]
-                measured_drive_states.append(value)
+                steering_pos = self.last_drive_module_state[index].orientation_velocity_in_body_coordinates.z
+                steering_vel = self.last_drive_module_state[index].orientation_velocity_in_body_coordinates.z
 
-                # self.get_logger().debug(
-                #     f'Updating joint states for: "{drive_module.name}" with: ' +
-                #     f'[ steering angle: "{value.orientation_in_body_coordinates.z}", ' +
-                #     f' steering velocity: "{value.orientation_velocity_in_body_coordinates.z}",' +
-                #     f' velocity: "{value.drive_velocity_in_module_coordinates.x}" ] '
-                # )
+
+            if drive_module.driving_link_name in joint_names:
+                drive_values_index = joint_names.index(drive_module.driving_link_name)
+                drive_vel = joint_velocities[drive_values_index] * drive_module.wheel_radius
+                updated_value = True
+            else:
+                drive_vel = self.last_drive_module_state[index].drive_velocity_in_module_coordinates.x
+
+            if not updated_value:
+                continue
+
+
+
+            value = DriveModuleMeasuredValues(
+                drive_module.name,
+                drive_module.steering_axis_xy_position.x,
+                drive_module.steering_axis_xy_position.y,
+                steering_pos,
+                steering_vel,
+                0.0,
+                0.0,
+                drive_vel,
+                0.0,
+                0.0
+            )
+            measured_drive_states.append(value)
+
+        if not updated_value:
+            return
 
         # Ideally we would get the time from the message. And then check if we have gotten a more
         # recent message
