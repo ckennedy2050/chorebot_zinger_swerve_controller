@@ -482,7 +482,7 @@ class SwerveController(Node):
                 updated_value = True
 
             else:
-                steering_pos = self.last_drive_module_state[index].orientation_velocity_in_body_coordinates.z
+                steering_pos = self.last_drive_module_state[index].orientation_in_body_coordinates.z
                 steering_vel = self.last_drive_module_state[index].orientation_velocity_in_body_coordinates.z
 
 
