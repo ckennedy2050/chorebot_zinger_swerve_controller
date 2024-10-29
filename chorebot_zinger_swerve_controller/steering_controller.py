@@ -15,6 +15,7 @@ import math
 from typing import Callable, List
 
 from .profile import TransientVariableProfile
+from rclpy.time import Time
 
 # local
 from .control import BodyMotionCommand, DriveModuleMotionCommand, InvalidMotionCommandException, MotionCommand
@@ -34,10 +35,10 @@ class DriveModuleDesiredValuesProfilePoint():
 #
 # Constants (should be parameters)
 #
-# If wheel module steering angle > than this value and robot is not stopped, stop robot before commanding angle (radians)
-ILLEGAL_WHEEL_ROTATION_THRESHOLD = math.pi / 2.
+# If wheel module steering angle diff > than this value and robot is not stopped, stop robot before commanding angle (radians)
+ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD = math.radians(30.)
 # Wheel module is considered stopped if abs velocity < this value (m/s)
-STOPPED_EPSILON = 0.1
+STOPPED_EPSILON = 0.001
 # If either body velocities are <= to these values, don't impose acceleration scaling (m/s)
 MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD = 0.15
 MIN_ANGULAR_VELOCITY_SAFETY_THRESHOLD = 0.13
@@ -48,12 +49,12 @@ class ModuleFollowsBodySteeringController():
             self,
             drive_modules: List[DriveModule],
             motion_profile_func: Callable[[float, float], TransientVariableProfile],
-            max_angular_acceleration: float,
+            max_angular_body_acceleration: float,
             logger: Callable[[str], None]):
         # Get the geometry for the robot
         self.modules = drive_modules
         self.motion_profile_func = motion_profile_func
-        self.max_angular_acceleration = max_angular_acceleration
+        self.max_angular_body_acceleration = max_angular_body_acceleration
         self.logger = logger
 
         # Use a simple control model for the time being. Just need something that roughly works
@@ -114,7 +115,7 @@ class ModuleFollowsBodySteeringController():
         # profile we should be
         self.current_time_in_seconds = 0.0
         self.profile_was_started_at_time_in_seconds = 0.0
-        self.last_state_update_time = 0.0
+        self.last_state_update_time: Time = None
         self.min_time_for_profile: float = 0.0
 
         # flags
@@ -130,9 +131,9 @@ class ModuleFollowsBodySteeringController():
         return self.module_states
 
     def drive_module_state_at_profile_time(self, time_fraction: float) -> List[DriveModuleDesiredValues]:
-        # self.logger(
-        #     'Determining profile values at time fraction {}'.format(time_fraction)
-        # )
+        self.logger(
+            'Determining profile values at time fraction {}'.format(time_fraction)
+        )
 
         result: List[DriveModuleDesiredValues] = []
         if self.is_executing_body_profile:
@@ -140,11 +141,11 @@ class ModuleFollowsBodySteeringController():
 
             ###### CK
             # Logic for imposing acceleration scaling
-            if abs(body_state.angular_acceleration.z) > self.max_angular_acceleration and \
+            if abs(body_state.angular_acceleration.z) > self.max_angular_body_acceleration and \
                     (abs(body_state.linear_velocity.x) > MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD or
                      abs(body_state.linear_velocity.y) > MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD ) and \
                     abs(body_state.angular_velocity.z) > MIN_ANGULAR_VELOCITY_SAFETY_THRESHOLD:
-                accel_scalar = abs(self.max_angular_acceleration / (2. * body_state.angular_acceleration.z))
+                accel_scalar = abs(self.max_angular_body_acceleration / (2. * body_state.angular_acceleration.z))
                 self.logger(f'Body angular acceleration {body_state.angular_acceleration.z} too high, scaling velocity by {accel_scalar}')
                 #self.logger(f'  Cur Body: - vx:{body_state.linear_velocity.x}, vy: {body_state.linear_velocity.y}, vo: {body_state.angular_velocity.z}')
                 body_state.linear_velocity.x *= accel_scalar
@@ -202,10 +203,9 @@ class ModuleFollowsBodySteeringController():
 
                 if abs(first_state_rotation_difference) <= abs(second_state_rotation_difference):
                     # CK
-                    if abs(first_state_rotation_difference) > ILLEGAL_WHEEL_ROTATION_THRESHOLD:
-                        #self.had_illegal_rotation = True
-                        self.had_illegal_rotation = not stopped
-                        self.logger(f'Big rotation {math.degrees(first_state_rotation_difference)} for {states_for_module[0].name} - Illegal: {self.had_illegal_rotation}')
+                    if abs(first_state_rotation_difference) > ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
+                        self.had_illegal_rotation = self.had_illegal_rotation or not stopped
+                        self.logger(f'Rotation diff {math.degrees(first_state_rotation_difference)} for {states_for_module[0].name} exceeds threshold. Allow forward velocity: {self.had_illegal_rotation}')
 
                     #print(f'{states_for_module[0].name} Diff: {math.degrees(first_state_rotation_difference)}')
 
@@ -256,10 +256,9 @@ class ModuleFollowsBodySteeringController():
                             # )
                 else:
                     # CK
-                    if abs(second_state_rotation_difference) > ILLEGAL_WHEEL_ROTATION_THRESHOLD:
-                        #self.had_illegal_rotation = True
-                        self.had_illegal_rotation = not stopped
-                        self.logger(f'Big rotation {math.degrees(second_state_rotation_difference)} for {states_for_module[0].name} - Illegal: {self.had_illegal_rotation}')
+                    if abs(second_state_rotation_difference) > ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
+                        self.had_illegal_rotation = self.had_illegal_rotation or not stopped
+                        self.logger(f'Rotation diff {math.degrees(second_state_rotation_difference)} for {states_for_module[0].name} exceeds threshold. Allow forward velocity: {self.had_illegal_rotation}')
                     #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)}')
 
                     if abs(second_state_velocity_difference) <= abs(first_state_velocity_difference):
@@ -309,18 +308,34 @@ class ModuleFollowsBodySteeringController():
                             # )
 
 
-
-            if self.had_illegal_rotation:
-                #for desired_value in result:
-                for i in range(len(self.modules)):
-                    #print(f'  {desired_value.name} vel: {desired_value.drive_velocity_in_meters_per_second}')
-                    # If illegal, we command a full stop of the drive motors, and retain current steering angle
-                    current_steering_angle = self.module_states[i].orientation_in_body_coordinates.z
-                    desired_state = result[i]
-                    desired_state.steering_angle_in_radians = current_steering_angle
+            for i in range(len(self.modules)):
+                desired_state = result[i]
+                if self.had_illegal_rotation:
+                    # If illegal, we command a full stop of the drive motors for this cycle, until they get closer to their desired values at a future timestep
+                    #current_steering_angle = self.module_states[i].orientation_in_body_coordinates.z
+                    #desired_state.steering_angle_in_radians = current_steering_angle
                     desired_state.drive_velocity_in_meters_per_second = 0.
 
+                #self.logger(f'Target: {desired_state.drive_velocity_in_meters_per_second} current: {self.module_states[i].drive_velocity_in_module_coordinates.x}')
+
+                # # Compute acceleration scaling on per module basis
+                # # TODO: We should technically divide this by the time fraction diff
+                # module_target_accel = desired_state.drive_velocity_in_meters_per_second - self.module_states[i].drive_velocity_in_module_coordinates.x
+                # if abs(module_target_accel) > self.modules[i].drive_motor_maximum_acceleration:
+                #     if module_target_accel > 0.:
+                #         new_target_velocity = self.module_states[i].drive_velocity_in_module_coordinates.x + self.modules[i].drive_motor_maximum_acceleration
+                #     else:
+                #         new_target_velocity = self.module_states[i].drive_velocity_in_module_coordinates.x - self.modules[i].drive_motor_maximum_acceleration
+                #
+                #     new_target_velocity = math.copysign(min(abs(new_target_velocity), self.modules[i].drive_motor_maximum_velocity), new_target_velocity)
+                #
+                #     self.logger(f'Drive acceleration for {desired_state.name} exceeds threshold {self.modules[i].drive_motor_maximum_acceleration}, scaling velocity from {desired_state.drive_velocity_in_meters_per_second} to {new_target_velocity}')
+                #     self.logger(f'Target: {desired_state.drive_velocity_in_meters_per_second} current: {self.module_states[i].drive_velocity_in_module_coordinates.x}')
+                #     #desired_state.drive_velocity_in_meters_per_second = new_target_velocity
+
         else:
+            # CK
+            assert False, 'Only body motion commands supported'
             for drive_module in self.modules:
                 state = self.module_profile_from_command.value_for_module_at(drive_module.name, time_fraction)
                 result.append(DriveModuleDesiredValues(
@@ -424,7 +439,7 @@ class ModuleFollowsBodySteeringController():
         self.min_time_for_profile = desired_motion.time_for_motion()
 
     # Updates the currently stored drive module state
-    def on_state_update(self, current_module_states: List[DriveModuleMeasuredValues]):
+    def on_state_update(self, current_module_states: List[DriveModuleMeasuredValues], msg_timestamp: Time):
         if current_module_states is None:
             raise TypeError()
 
@@ -447,54 +462,74 @@ class ModuleFollowsBodySteeringController():
         #     )
         # )
 
-        time_step_in_seconds = self.current_time_in_seconds - self.last_state_update_time
-        # self.logger(
-        #     'Determining body position at {}. Last update at: {}. Time delta: {}'.format(self.current_time_in_seconds, self.last_state_update_time, time_step_in_seconds)
-        # )
+        # CK
+        if msg_timestamp is not None and self.last_state_update_time is not None:
+            # Using the node clock time results in inaccurate position data, use message timestamp instead
+            #time_step_in_seconds = self.current_time_in_seconds - self.last_state_update_time
+            time_step_in_seconds = (msg_timestamp - self.last_state_update_time).nanoseconds / 1e9
 
-        # Position
-        local_x_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.x + body_motion.linear_velocity.x)
-        local_y_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.y + body_motion.linear_velocity.y)
+            # self.logger(
+            #     'Determining body position at {}. Last update at: {}. Time delta: {}'.format(self.current_time_in_seconds, self.last_state_update_time, time_step_in_seconds)
+            # )
 
-        # Orientation
-        global_orientation = self.body_state.orientation_in_world_coordinates.z + time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.angular_velocity.z + body_motion.angular_velocity.z)
+            # Position
+            local_x_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.x + body_motion.linear_velocity.x)
+            local_y_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.y + body_motion.linear_velocity.y)
 
-        # Acceleration
-        local_x_acceleration = 0.0
-        local_y_acceleration = 0.0
-        orientation_acceleration = 0.0
-        if not math.isclose(time_step_in_seconds, 0.0, abs_tol=1e-4, rel_tol=1e-4):
-            local_x_acceleration = (body_motion.linear_velocity.x - self.body_state.motion_in_body_coordinates.linear_velocity.x) / time_step_in_seconds
-            local_y_acceleration = (body_motion.linear_velocity.y - self.body_state.motion_in_body_coordinates.linear_velocity.y) / time_step_in_seconds
-            orientation_acceleration = (body_motion.angular_velocity.z - self.body_state.motion_in_body_coordinates.angular_velocity.z) / time_step_in_seconds
+            # Orientation
+            global_orientation = self.body_state.orientation_in_world_coordinates.z + time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.angular_velocity.z + body_motion.angular_velocity.z)
 
-        # print('Body:')
-        # print(f'   vel - vx: {body_motion.linear_velocity.x}, vy: {body_motion.linear_velocity.y}, vo: {body_motion.angular_velocity.z}')
-        # print(f'   accel - ax: {local_x_acceleration}, ay: {local_y_acceleration}, ao: {orientation_acceleration}')
+            # Acceleration
+            local_x_acceleration = 0.0
+            local_y_acceleration = 0.0
+            orientation_acceleration = 0.0
+            if not math.isclose(time_step_in_seconds, 0.0, abs_tol=1e-4, rel_tol=1e-4):
+                local_x_acceleration = (body_motion.linear_velocity.x - self.body_state.motion_in_body_coordinates.linear_velocity.x) / time_step_in_seconds
+                local_y_acceleration = (body_motion.linear_velocity.y - self.body_state.motion_in_body_coordinates.linear_velocity.y) / time_step_in_seconds
+                orientation_acceleration = (body_motion.angular_velocity.z - self.body_state.motion_in_body_coordinates.angular_velocity.z) / time_step_in_seconds
 
-        # Jerk
-        local_x_jerk = 0.0
-        local_y_jerk = 0.0
-        orientation_jerk = 0.0
-        if not math.isclose(time_step_in_seconds, 0.0, abs_tol=1e-4, rel_tol=1e-4):
-            local_x_jerk = (local_x_acceleration - self.body_state.motion_in_body_coordinates.linear_acceleration.x) / time_step_in_seconds
-            local_y_jerk = (local_y_acceleration - self.body_state.motion_in_body_coordinates.linear_acceleration.y) / time_step_in_seconds
-            orientation_jerk = (orientation_acceleration - self.body_state.motion_in_body_coordinates.angular_acceleration.z) / time_step_in_seconds
+            # print('Body:')
+            # print(f'   vel - vx: {body_motion.linear_velocity.x}, vy: {body_motion.linear_velocity.y}, vo: {body_motion.angular_velocity.z}')
+            # print(f'   accel - ax: {local_x_acceleration}, ay: {local_y_acceleration}, ao: {orientation_acceleration}')
 
-        self.body_state = BodyState(
-            self.body_state.position_in_world_coordinates.x + local_x_distance * math.cos(global_orientation) - local_y_distance * math.sin(global_orientation),
-            self.body_state.position_in_world_coordinates.y + local_x_distance * math.sin(global_orientation) + local_y_distance * math.cos(global_orientation),
-            global_orientation,
-            body_motion.linear_velocity.x,
-            body_motion.linear_velocity.y,
-            body_motion.angular_velocity.z,
-            local_x_acceleration,
-            local_y_acceleration,
-            orientation_acceleration,
-            local_x_jerk,
-            local_y_jerk,
-            orientation_jerk
-        )
+            # Jerk
+            local_x_jerk = 0.0
+            local_y_jerk = 0.0
+            orientation_jerk = 0.0
+            if not math.isclose(time_step_in_seconds, 0.0, abs_tol=1e-4, rel_tol=1e-4):
+                local_x_jerk = (local_x_acceleration - self.body_state.motion_in_body_coordinates.linear_acceleration.x) / time_step_in_seconds
+                local_y_jerk = (local_y_acceleration - self.body_state.motion_in_body_coordinates.linear_acceleration.y) / time_step_in_seconds
+                orientation_jerk = (orientation_acceleration - self.body_state.motion_in_body_coordinates.angular_acceleration.z) / time_step_in_seconds
+
+            self.body_state = BodyState(
+                self.body_state.position_in_world_coordinates.x + local_x_distance * math.cos(global_orientation) - local_y_distance * math.sin(global_orientation),
+                self.body_state.position_in_world_coordinates.y + local_x_distance * math.sin(global_orientation) + local_y_distance * math.cos(global_orientation),
+                global_orientation,
+                body_motion.linear_velocity.x,
+                body_motion.linear_velocity.y,
+                body_motion.angular_velocity.z,
+                local_x_acceleration,
+                local_y_acceleration,
+                orientation_acceleration,
+                local_x_jerk,
+                local_y_jerk,
+                orientation_jerk
+            )
+        else:
+            self.body_state = BodyState(
+                self.body_state.position_in_world_coordinates.x,
+                self.body_state.position_in_world_coordinates.y,
+                self.body_state.orientation_in_world_coordinates.z,
+                body_motion.linear_velocity.x,
+                body_motion.linear_velocity.y,
+                body_motion.angular_velocity.z,
+                0.,
+                0.,
+                0.,
+                0.,
+                0.,
+                0.
+            )
 
         # self.logger(
         #     'position: [{}, {}, {}] orientation [[{}, {}, {}]]'.format(
@@ -507,7 +542,9 @@ class ModuleFollowsBodySteeringController():
         #     )
         # )
 
-        self.last_state_update_time = self.current_time_in_seconds
+        #self.last_state_update_time = self.current_time_in_seconds
+        if msg_timestamp is not None:
+            self.last_state_update_time = msg_timestamp
 
     # On clock tick, determine if we need to recalculate the trajectories for the drive modules
     def on_tick(self, current_time_in_seconds: float):

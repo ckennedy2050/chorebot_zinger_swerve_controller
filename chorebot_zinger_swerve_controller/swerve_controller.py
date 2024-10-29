@@ -193,7 +193,7 @@ class SwerveController(Node):
         )
 
         # Initialize the drive modules
-        self.last_drive_module_state = self.initialize_drive_module_states(self.drive_modules)
+        self.last_drive_module_state = self.initialize_drive_module_states()
 
         self.joint_command_publisher = self.create_publisher(JointState, "joint_command", 10)
         self.steering_joint_names = self.get_parameter("steering_joints").value
@@ -296,7 +296,7 @@ class SwerveController(Node):
         steering_motor_maximum_acceleration = 1.0
         drive_motor_maximum_velocity = 0.6
         drive_motor_minimum_acceleration = 0.1
-        drive_motor_maximum_acceleration = 1.0
+        drive_motor_maximum_acceleration = 0.1  #1.0 # m/s
 
         # store the steering joints
         steering_joint_names = self.get_parameter("steering_joints").value
@@ -420,7 +420,7 @@ class SwerveController(Node):
 
         return SingleVariableLinearProfile(start, end)
 
-    def initialize_drive_module_states(self, drive_modules: List[DriveModule]) -> List[DriveModuleMeasuredValues]:
+    def initialize_drive_module_states(self) -> List[DriveModuleMeasuredValues]:
         measured_drive_states: List[DriveModuleMeasuredValues] = []
         for drive_module in self.drive_modules:
 
@@ -443,7 +443,7 @@ class SwerveController(Node):
             )
 
         self.store_time_and_update_controller_time()
-        self.controller.on_state_update(measured_drive_states)
+        self.controller.on_state_update(measured_drive_states, None)
 
         return measured_drive_states
 
@@ -518,7 +518,7 @@ class SwerveController(Node):
         # Ideally we would get the time from the message. And then check if we have gotten a more
         # recent message
         self.store_time_and_update_controller_time()
-        self.controller.on_state_update(measured_drive_states)
+        self.controller.on_state_update(measured_drive_states, Time.from_msg(msg.header.stamp))
         self.last_drive_module_state = measured_drive_states
 
     def publish_odometry(self):
@@ -546,7 +546,7 @@ class SwerveController(Node):
         msg.twist.twist.angular.y = body_state.motion_in_body_coordinates.angular_velocity.y
         msg.twist.twist.angular.z = body_state.motion_in_body_coordinates.angular_velocity.z
 
-        self.send_odom_transform(msg)
+        #self.send_odom_transform(msg)
 
         # For now we ignore the covariances
 
@@ -595,8 +595,9 @@ class SwerveController(Node):
     def timer_callback(self):
         self.store_time_and_update_controller_time()
 
+        # TODO: Scale is wrong on published odometry; don't bother publishing until we fix
         # always send out the odometry information
-        #self.publish_odometry()
+        self.publish_odometry()
 
         # Check if we actually have a movement profile to send
         current_time = self.get_clock().now()
@@ -615,6 +616,8 @@ class SwerveController(Node):
         # )
 
         #if running_duration_as_float > self.controller.min_time_for_profile:
+        # If running time has exceeded minimum time, don't bother re-running controller (unless we had a pending illegal motion)
+        # self.controller.min_time_for_profile should be equal to motion_estimation_time_span the parameter
         if running_duration_as_float > self.controller.min_time_for_profile + 1. / self.cycle_time_in_hertz and \
                 not self.controller.had_illegal_rotation:
             # self.get_logger().debug(
