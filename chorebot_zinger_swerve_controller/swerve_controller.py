@@ -684,8 +684,9 @@ class SwerveController(Node):
         self.last_steering_angle_values_deg = steering_angle_values_deg
 
         # Scale the outgoing velocity values
-        vel_scalar = 100.
-        drive_velocity_values = [v * vel_scalar for v in drive_velocity_values]
+        # vel_scalar = 100.
+        # drive_velocity_values = [v * vel_scalar for v in drive_velocity_values]
+
 
 
         # Flip the right wheels on outgoing
@@ -694,10 +695,13 @@ class SwerveController(Node):
         drive_velocity_values[2] *= -1.
         ###
 
+        # NOTE DEGREES!!!
+        drive_velocity_values_degrees = [math.degrees(v) for v in drive_velocity_values]
 
         quad_zero = [0.]*4
         self.publish_joint_command(self.steering_joint_names + self.drive_joint_names, positions=steering_angle_values_deg + quad_zero,
-                                   velocities=quad_zero + drive_velocity_values, effort=[float(100.)]*8)
+                                   velocities=quad_zero + drive_velocity_values_degrees, effort=[float(100.)]*8)
+                                   #velocities=quad_zero + drive_velocity_values, effort=[float(100.)]*8)
 
         ################################################################################################################
         self.last_control_update_send_at = self.last_recorded_time
