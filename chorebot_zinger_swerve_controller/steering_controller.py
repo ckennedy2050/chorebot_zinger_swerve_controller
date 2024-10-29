@@ -123,6 +123,7 @@ class ModuleFollowsBodySteeringController():
         self.is_executing_module_profile: bool = False
         # CK
         self.had_illegal_rotation: bool = False
+        self.had_illegal_acceleration: bool = False
 
     def body_state_at_current_time(self) -> BodyState:
         return self.body_state
@@ -163,6 +164,7 @@ class ModuleFollowsBodySteeringController():
                     stopped = False
 
             self.had_illegal_rotation = False
+            self.had_illegal_acceleration = False
             ######
 
             drive_module_desired_values = self.control_model.state_of_wheel_modules_from_body_motion(body_state)
@@ -205,7 +207,7 @@ class ModuleFollowsBodySteeringController():
                     # CK
                     if abs(first_state_rotation_difference) > ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
                         self.had_illegal_rotation = self.had_illegal_rotation or not stopped
-                        self.logger(f'Rotation diff {math.degrees(first_state_rotation_difference)} for {states_for_module[0].name} exceeds threshold. Allow forward velocity: {self.had_illegal_rotation}')
+                        self.logger(f'Rotation diff {math.degrees(first_state_rotation_difference):.1f} for {states_for_module[0].name} exceeds threshold. Deny forward velocity: {self.had_illegal_rotation}')
 
                     #print(f'{states_for_module[0].name} Diff: {math.degrees(first_state_rotation_difference)}')
 
@@ -258,7 +260,7 @@ class ModuleFollowsBodySteeringController():
                     # CK
                     if abs(second_state_rotation_difference) > ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
                         self.had_illegal_rotation = self.had_illegal_rotation or not stopped
-                        self.logger(f'Rotation diff {math.degrees(second_state_rotation_difference)} for {states_for_module[0].name} exceeds threshold. Allow forward velocity: {self.had_illegal_rotation}')
+                        self.logger(f'Rotation diff {math.degrees(second_state_rotation_difference):.1f} for {states_for_module[0].name} exceeds threshold. Deny forward velocity: {self.had_illegal_rotation}')
                     #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)}')
 
                     if abs(second_state_velocity_difference) <= abs(first_state_velocity_difference):
@@ -318,20 +320,20 @@ class ModuleFollowsBodySteeringController():
 
                 #self.logger(f'Target: {desired_state.drive_velocity_in_meters_per_second} current: {self.module_states[i].drive_velocity_in_module_coordinates.x}')
 
-                # # Compute acceleration scaling on per module basis
-                # # TODO: We should technically divide this by the time fraction diff
-                # module_target_accel = desired_state.drive_velocity_in_meters_per_second - self.module_states[i].drive_velocity_in_module_coordinates.x
-                # if abs(module_target_accel) > self.modules[i].drive_motor_maximum_acceleration:
-                #     if module_target_accel > 0.:
-                #         new_target_velocity = self.module_states[i].drive_velocity_in_module_coordinates.x + self.modules[i].drive_motor_maximum_acceleration
-                #     else:
-                #         new_target_velocity = self.module_states[i].drive_velocity_in_module_coordinates.x - self.modules[i].drive_motor_maximum_acceleration
-                #
-                #     new_target_velocity = math.copysign(min(abs(new_target_velocity), self.modules[i].drive_motor_maximum_velocity), new_target_velocity)
-                #
-                #     self.logger(f'Drive acceleration for {desired_state.name} exceeds threshold {self.modules[i].drive_motor_maximum_acceleration}, scaling velocity from {desired_state.drive_velocity_in_meters_per_second} to {new_target_velocity}')
-                #     self.logger(f'Target: {desired_state.drive_velocity_in_meters_per_second} current: {self.module_states[i].drive_velocity_in_module_coordinates.x}')
-                #     #desired_state.drive_velocity_in_meters_per_second = new_target_velocity
+                # Compute acceleration scaling on per module basis
+                # TODO: We should technically divide this by the time fraction diff
+                module_target_accel = desired_state.drive_velocity_in_meters_per_second - self.module_states[i].drive_velocity_in_module_coordinates.x
+                if abs(module_target_accel) > self.modules[i].drive_motor_maximum_acceleration:
+                    self.had_illegal_acceleration = True
+                    if module_target_accel > 0.:
+                        new_target_velocity = self.module_states[i].drive_velocity_in_module_coordinates.x + self.modules[i].drive_motor_maximum_acceleration
+                    else:
+                        new_target_velocity = self.module_states[i].drive_velocity_in_module_coordinates.x - self.modules[i].drive_motor_maximum_acceleration
+
+                    new_target_velocity = math.copysign(min(abs(new_target_velocity), self.modules[i].drive_motor_maximum_velocity), new_target_velocity)
+
+                    self.logger(f'Drive acceleration for {desired_state.name} exceeds {self.modules[i].drive_motor_maximum_acceleration} threshold at current velocity {self.module_states[i].drive_velocity_in_module_coordinates.x:.3f},\n    scaling target velocity from {desired_state.drive_velocity_in_meters_per_second:.3f} to {new_target_velocity:.3f}')
+                    desired_state.drive_velocity_in_meters_per_second = new_target_velocity
 
         else:
             # CK

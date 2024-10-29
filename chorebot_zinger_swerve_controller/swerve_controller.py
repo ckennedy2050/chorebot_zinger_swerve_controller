@@ -296,7 +296,7 @@ class SwerveController(Node):
         steering_motor_maximum_acceleration = 1.0
         drive_motor_maximum_velocity = 0.6
         drive_motor_minimum_acceleration = 0.1
-        drive_motor_maximum_acceleration = 0.1  #1.0 # m/s
+        drive_motor_maximum_acceleration = 0.3  #1.0 # m/time_step_interval
 
         # store the steering joints
         steering_joint_names = self.get_parameter("steering_joints").value
@@ -619,7 +619,7 @@ class SwerveController(Node):
         # If running time has exceeded minimum time, don't bother re-running controller (unless we had a pending illegal motion)
         # self.controller.min_time_for_profile should be equal to motion_estimation_time_span the parameter
         if running_duration_as_float > self.controller.min_time_for_profile + 1. / self.cycle_time_in_hertz and \
-                not self.controller.had_illegal_rotation:
+                not self.controller.had_illegal_rotation and not self.controller.had_illegal_acceleration:
             # self.get_logger().debug(
             #     'Trajectory completed waiting for next command.'
             # )
