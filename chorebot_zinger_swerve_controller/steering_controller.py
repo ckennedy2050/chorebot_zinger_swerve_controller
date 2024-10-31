@@ -43,6 +43,53 @@ STOPPED_EPSILON = 0.001
 MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD = 0.15
 MIN_ANGULAR_VELOCITY_SAFETY_THRESHOLD = 0.13
 
+
+### CK
+class MovingAverage:
+    """
+    Track a moving average over a fixed window
+    """
+    def __init__(self, window_size):
+        self.window_size = window_size
+        self.data_points = []
+
+    def add(self, value):
+        """
+        Append a point
+        :param value: Number or np.array
+        :return: New average
+        """
+        self.data_points.append(value)
+
+        if len(self.data_points) > self.window_size:
+            self.data_points = self.data_points[-self.window_size:]
+
+        return self.average()
+
+    def average(self):
+        if len(self.data_points) == 0:
+            return 0
+        return sum(self.data_points) / len(self.data_points)
+
+    def has_data(self):
+        return len(self.data_points) > 0
+
+class BodyVelocityStateAverage:
+    """
+    Average body state over multiple time steps
+    """
+    # We use 4 because the joint messages come separately and just insert previous value for half the updates,
+    # So this effectively averages over two actual sensor readings
+    WINDOW_SIZE = 4
+
+    def __init__(self):
+        self.linear_vel_x = MovingAverage(BodyVelocityStateAverage.WINDOW_SIZE)
+        self.linear_vel_y = MovingAverage(BodyVelocityStateAverage.WINDOW_SIZE)
+        self.angular_vel_z = MovingAverage(BodyVelocityStateAverage.WINDOW_SIZE)
+
+    def has_data(self):
+        return self.linear_vel_x.has_data() and self.linear_vel_y.has_data() and self.angular_vel_z.has_data()
+
 class ModuleFollowsBodySteeringController():
 
     def __init__(
@@ -122,6 +169,7 @@ class ModuleFollowsBodySteeringController():
         self.is_executing_body_profile: bool = False
         self.is_executing_module_profile: bool = False
         # CK
+        self.velocity_state_avg: BodyVelocityStateAverage = BodyVelocityStateAverage()
         self.had_illegal_rotation: bool = False
         self.had_illegal_acceleration: bool = False
 
@@ -463,6 +511,10 @@ class ModuleFollowsBodySteeringController():
         #         body_motion.angular_velocity.z,
         #     )
         # )
+        # CK
+        self.velocity_state_avg.linear_vel_x.add(body_motion.linear_velocity.x)
+        self.velocity_state_avg.linear_vel_y.add(body_motion.linear_velocity.y)
+        self.velocity_state_avg.angular_vel_z.add(body_motion.angular_velocity.z)
 
         # CK
         if msg_timestamp is not None and self.last_state_update_time is not None:
@@ -475,11 +527,14 @@ class ModuleFollowsBodySteeringController():
             # )
 
             # Position
-            local_x_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.x + body_motion.linear_velocity.x)
-            local_y_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.y + body_motion.linear_velocity.y)
+            # local_x_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.x + body_motion.linear_velocity.x)
+            # local_y_distance = time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.linear_velocity.y + body_motion.linear_velocity.y)
+            local_x_distance = time_step_in_seconds * self.velocity_state_avg.linear_vel_x.average()
+            local_y_distance = time_step_in_seconds * self.velocity_state_avg.linear_vel_y.average()
 
             # Orientation
-            global_orientation = self.body_state.orientation_in_world_coordinates.z + time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.angular_velocity.z + body_motion.angular_velocity.z)
+            #global_orientation = self.body_state.orientation_in_world_coordinates.z + time_step_in_seconds * 0.5 * (self.body_state.motion_in_body_coordinates.angular_velocity.z + body_motion.angular_velocity.z)
+            global_orientation = self.body_state.orientation_in_world_coordinates.z + time_step_in_seconds * self.velocity_state_avg.angular_vel_z.average()
 
             # Acceleration
             local_x_acceleration = 0.0
@@ -566,3 +621,4 @@ class ModuleFollowsBodySteeringController():
         down = self.round_down(num, to)
 
         return num if num == down else down + to
+

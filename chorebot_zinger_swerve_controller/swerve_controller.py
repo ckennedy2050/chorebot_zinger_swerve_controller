@@ -282,13 +282,16 @@ class SwerveController(Node):
         # Get the drive module information from the URDF and turn it into a list of drive modules.
         #
         # For now we don't read the URDF and just hard-code the drive modules
-        robot_length = 0.75
-        robot_width = 0.3366
+        #robot_length = 0.75
+        #robot_width = 0.3366
+        #steering_radius = 0.05
 
-        steering_radius = 0.05
+        robot_length = 0.617
+        robot_width = 0.3366
+        steering_radius = 0.
 
         wheel_radius = 0.062
-        wheel_width = 0.05
+        wheel_width = 0.059
 
         # Steering motor params are not used, only drive motor
         steering_motor_maximum_velocity = 10.
