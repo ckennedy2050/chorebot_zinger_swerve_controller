@@ -36,7 +36,9 @@ class DriveModuleDesiredValuesProfilePoint():
 # Constants (should be parameters)
 #
 # If wheel module steering angle diff > than this value and robot is not stopped, stop robot before commanding angle (radians)
-ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD = math.radians(30.)
+ACCEPTABLE_INDIVIDUAL_ROTATION_DIFF_WHILE_MOVING_THRESHOLD = math.radians(30.)
+# If wheel module desired steering angles are opposing, every module must reach this threshold before robot can move again
+ACCEPTABLE_OPPOSING_ROTATION_DIFF_THRESHOLD = math.radians(2.)
 # Wheel module is considered stopped if abs velocity < this value (m/s)
 STOPPED_EPSILON = 0.001
 # If either body velocities are <= to these values, don't impose acceleration scaling (m/s)
@@ -180,9 +182,9 @@ class ModuleFollowsBodySteeringController():
         return self.module_states
 
     def drive_module_state_at_profile_time(self, time_fraction: float) -> List[DriveModuleDesiredValues]:
-        self.logger(
-            'Determining profile values at time fraction {}'.format(time_fraction)
-        )
+        # self.logger(
+        #     'Determining profile values at time fraction {}'.format(time_fraction)
+        # )
 
         result: List[DriveModuleDesiredValues] = []
         if self.is_executing_body_profile:
@@ -253,7 +255,7 @@ class ModuleFollowsBodySteeringController():
 
                 if abs(first_state_rotation_difference) <= abs(second_state_rotation_difference):
                     # CK
-                    if abs(first_state_rotation_difference) > ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
+                    if abs(first_state_rotation_difference) > ACCEPTABLE_INDIVIDUAL_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
                         self.had_illegal_rotation = self.had_illegal_rotation or not stopped
                         self.logger(f'Rotation diff {math.degrees(first_state_rotation_difference):.1f} for {states_for_module[0].name} exceeds threshold. Deny forward velocity: {self.had_illegal_rotation}')
 
@@ -306,7 +308,7 @@ class ModuleFollowsBodySteeringController():
                             # )
                 else:
                     # CK
-                    if abs(second_state_rotation_difference) > ACCEPTABLE_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
+                    if abs(second_state_rotation_difference) > ACCEPTABLE_INDIVIDUAL_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
                         self.had_illegal_rotation = self.had_illegal_rotation or not stopped
                         self.logger(f'Rotation diff {math.degrees(second_state_rotation_difference):.1f} for {states_for_module[0].name} exceeds threshold. Deny forward velocity: {self.had_illegal_rotation}')
                     #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)}')
@@ -357,7 +359,31 @@ class ModuleFollowsBodySteeringController():
                             #     )
                             # )
 
+            #
+            # Opposing wheel check
+            #
+            desired_steering_angles = [r.steering_angle_in_radians for r in result]
+            # This is the maximum difference in desired steering angles between all wheels
+            max_steering_angle_diff =  max(desired_steering_angles) - min(desired_steering_angles)
+            #self.logger(f'MAX STEERING DIFF: {math.degrees(max_steering_angle_diff)}')
 
+            if max_steering_angle_diff > math.pi / 2. and not stopped and not self.had_illegal_rotation:
+                # In special case where wheels position themselves at opposing angles, we must remain stopped until all
+                # wheels have reached their desired steering angle
+                # Check if wheels have reached angle
+                for i in range(len(self.modules)):
+                    current_state_for_module = self.module_states[i]
+                    current_steering_angle = current_state_for_module.orientation_in_body_coordinates.z
+                    # Diff between current and desired
+                    module_rotation_difference = difference_between_angles(current_steering_angle, result[i].steering_angle_in_radians)
+                    if module_rotation_difference > ACCEPTABLE_OPPOSING_ROTATION_DIFF_THRESHOLD:
+                        self.logger(f'Opposing wheel steering targets not reached and robot is moving. Stopping robot...')
+                        self.had_illegal_rotation = True
+
+
+            #
+            # Handle illegal rotation and scale acceleration
+            #
             for i in range(len(self.modules)):
                 desired_state = result[i]
                 if self.had_illegal_rotation:
