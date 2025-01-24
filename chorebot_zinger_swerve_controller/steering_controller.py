@@ -172,7 +172,6 @@ class ModuleFollowsBodySteeringController():
         self.is_executing_module_profile: bool = False
         # CK
         self.velocity_state_avg: BodyVelocityStateAverage = BodyVelocityStateAverage()
-        self.had_illegal_rotation: bool = False
         self.had_illegal_acceleration: bool = False
 
     def body_state_at_current_time(self) -> BodyState:
@@ -213,7 +212,6 @@ class ModuleFollowsBodySteeringController():
                 if not math.isclose(m.drive_velocity_in_module_coordinates.x, 0., abs_tol=STOPPED_EPSILON):
                     stopped = False
 
-            self.had_illegal_rotation = False
             self.had_illegal_acceleration = False
             ######
 
@@ -254,11 +252,6 @@ class ModuleFollowsBodySteeringController():
                 # - first velocity change is larger and second orientation change is larger -> Bad state. Pick the one with the least relative change?
 
                 if abs(first_state_rotation_difference) <= abs(second_state_rotation_difference):
-                    # CK
-                    if abs(first_state_rotation_difference) > ACCEPTABLE_INDIVIDUAL_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
-                        self.had_illegal_rotation = self.had_illegal_rotation or not stopped
-                        self.logger(f'Rotation diff {math.degrees(first_state_rotation_difference):.1f} for {states_for_module[0].name} exceeds threshold. Deny forward velocity: {self.had_illegal_rotation}')
-
                     #print(f'{states_for_module[0].name} Diff: {math.degrees(first_state_rotation_difference)}')
 
                     if abs(first_state_velocity_difference) <= abs(second_state_velocity_difference):
@@ -307,10 +300,6 @@ class ModuleFollowsBodySteeringController():
                             #     )
                             # )
                 else:
-                    # CK
-                    if abs(second_state_rotation_difference) > ACCEPTABLE_INDIVIDUAL_ROTATION_DIFF_WHILE_MOVING_THRESHOLD:
-                        self.had_illegal_rotation = self.had_illegal_rotation or not stopped
-                        self.logger(f'Rotation diff {math.degrees(second_state_rotation_difference):.1f} for {states_for_module[0].name} exceeds threshold. Deny forward velocity: {self.had_illegal_rotation}')
                     #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)}')
 
                     if abs(second_state_velocity_difference) <= abs(first_state_velocity_difference):
@@ -367,18 +356,7 @@ class ModuleFollowsBodySteeringController():
             max_steering_angle_diff =  max(desired_steering_angles) - min(desired_steering_angles)
             #self.logger(f'MAX STEERING DIFF: {math.degrees(max_steering_angle_diff)}')
 
-            if max_steering_angle_diff > math.pi / 2. and not stopped and not self.had_illegal_rotation:
-                # In special case where wheels position themselves at opposing angles, we must remain stopped until all
-                # wheels have reached their desired steering angle
-                # Check if wheels have reached angle
-                for i in range(len(self.modules)):
-                    current_state_for_module = self.module_states[i]
-                    current_steering_angle = current_state_for_module.orientation_in_body_coordinates.z
-                    # Diff between current and desired
-                    module_rotation_difference = difference_between_angles(current_steering_angle, result[i].steering_angle_in_radians)
-                    if module_rotation_difference > ACCEPTABLE_OPPOSING_ROTATION_DIFF_THRESHOLD:
-                        self.logger(f'Opposing wheel steering targets not reached and robot is moving. Stopping robot...')
-                        self.had_illegal_rotation = True
+
 
 
             #
@@ -386,11 +364,6 @@ class ModuleFollowsBodySteeringController():
             #
             for i in range(len(self.modules)):
                 desired_state = result[i]
-                if self.had_illegal_rotation:
-                    # If illegal, we command a full stop of the drive motors for this cycle, until they get closer to their desired values at a future timestep
-                    #current_steering_angle = self.module_states[i].orientation_in_body_coordinates.z
-                    #desired_state.steering_angle_in_radians = current_steering_angle
-                    desired_state.drive_velocity_in_meters_per_second = 0.
 
                 #self.logger(f'Target: {desired_state.drive_velocity_in_meters_per_second} current: {self.module_states[i].drive_velocity_in_module_coordinates.x}')
 
