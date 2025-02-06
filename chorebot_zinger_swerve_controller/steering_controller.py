@@ -205,16 +205,16 @@ class ModuleFollowsBodySteeringController():
 
 
             # If we previously had an illegal rotation, check current velocity of each drive module
-            stopped = True
-            m: DriveModuleMeasuredValues
-            #print('Post illegal module velocities: ' +  str([m.drive_velocity_in_module_coordinates.x for m in self.module_states]))
-            for m in self.module_states:
-                if not math.isclose(m.drive_velocity_in_module_coordinates.x, 0., abs_tol=STOPPED_EPSILON):
-                    stopped = False
+            # stopped = True
+            # m: DriveModuleMeasuredValues
+            # #print('Post illegal module velocities: ' +  str([m.drive_velocity_in_module_coordinates.x for m in self.module_states]))
+            # for m in self.module_states:
+            #     if not math.isclose(m.drive_velocity_in_module_coordinates.x, 0., abs_tol=STOPPED_EPSILON):
+            #         stopped = False
 
             self.had_illegal_acceleration = False
             ######
-
+            #print('#####################################################################################################################')
             drive_module_desired_values = self.control_model.state_of_wheel_modules_from_body_motion(body_state)
             for i in range(len(self.modules)):
                 # Wheels are moving. We don't know what kind of movement yet though, so figure out if:
@@ -243,8 +243,9 @@ class ModuleFollowsBodySteeringController():
                 first_state_velocity_difference = states_for_module[0].drive_velocity_in_meters_per_second - current_velocity
                 second_state_velocity_difference = states_for_module[1].drive_velocity_in_meters_per_second - current_velocity
 
-                # print(f'First state diffs (rot,vel): {first_state_rotation_difference} / {first_state_velocity_difference}')
-                # print(f'Second state diffs (rot,vel): {second_state_rotation_difference} / {second_state_velocity_difference}')
+                # print(f'[{i}] Rotation vals (current,first,second): {math.degrees(current_steering_angle)} / {math.degrees(states_for_module[0].steering_angle_in_radians)} / {math.degrees(states_for_module[1].steering_angle_in_radians)}')
+                # print(f'     First state diffs (rot,vel): {math.degrees(first_state_rotation_difference)} / {first_state_velocity_difference}')
+                # print(f'     Second state diffs (rot,vel): {math.degrees(second_state_rotation_difference)} / {second_state_velocity_difference}')
 
                 # Possibilities:
                 # - first velocity change and first orientation change are the smallest -> pick the first state

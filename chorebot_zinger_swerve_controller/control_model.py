@@ -23,12 +23,27 @@ from typing import List, Tuple
 from .drive_module import DriveModule
 from .states import DriveModuleDesiredValues, DriveModuleMeasuredValues, BodyMotion
 
+
 def normalize_angle(angle_in_radians: float) -> float:
+    """ Normalize to [0, 2pi] """
+    # INCORRECT - modulus always returns a positive value
     # reduce the angle to [-2pi, 2pi]
-    angle = angle_in_radians % (2 * math.pi)
+    #angle = angle_in_radians % (2 * math.pi)
 
     # Force the angle to the between 0 and 2pi
-    angle = (angle + 2 * math.pi) % (2 * math.pi)
+    #angle = (angle + 2 * math.pi) % (2 * math.pi)
+
+    # reduce the angle to [0, 2pi]
+    angle = angle_in_radians % (2 * math.pi)
+
+    return angle
+
+
+def normalize_angle_neg_pi(angle_in_radians: float) -> float:
+    """ Normalize to [-pi, pi] """
+
+    # reduce the angle to [0, 2pi]
+    angle = angle_in_radians % (2 * math.pi)
 
     if angle > math.pi:
         angle -= 2 * math.pi
@@ -36,20 +51,36 @@ def normalize_angle(angle_in_radians: float) -> float:
     return angle
 
 
-def difference_between_angles(starting_angle_in_radians: float, ending_angle_in_radians: float) -> float:
-    normalized_start = normalize_angle(starting_angle_in_radians)
-    normalized_end = normalize_angle(ending_angle_in_radians)
+def normalize_angle_neg_2pi(angle_in_radians: float) -> float:
+    """ Normalize to [-2pi, 2pi] """
 
-    diff_angle = normalized_end - normalized_start
+    angle_mod = angle_in_radians % 4*math.pi
+    # If the reduced angle is greater than 360, shift it to [-360, 0)
+    if angle_mod > 2*math.pi:
+        angle_mod -= 4*math.pi
 
-    # make sure we get the smallest angle
-    if diff_angle > math.pi:
-        diff_angle -= 2 * math.pi
-    else:
-        if diff_angle < -math.pi:
-            diff_angle += 2 * math.pi
+    return angle_mod
 
-    return diff_angle
+
+def difference_between_angles(angle1: float, angle2: float) -> float:
+    """
+    Computes the smallest signed difference (angle2 - angle1) in radians.
+    The result is in [-pi, pi].
+    """
+    # Get the raw difference
+    diff = angle2 - angle1
+
+    # Normalize this difference to [-2pi, 2pi]
+    diff_normalized = normalize_angle(diff)
+
+    # Now shift any value outside [-pi, pi] into that interval
+    if diff_normalized > math.pi:
+        diff_normalized -= 2*math.pi
+    elif diff_normalized < -math.pi:
+        diff_normalized += 2*math.pi
+
+    return diff_normalized
+
 
 # Abstract class for control models
 class ControlModelBase(object):
@@ -222,7 +253,7 @@ class SimpleFourWheelSteeringControlModel(ControlModelBase):
                 # The acos value decides if the wheel orientation is between 0 - 90 degrees or 90 - 180 degrees, i.e. top and bottom, but
                 # doesn't distinguish between left and right
                 # the asin value decides if the wheel orientation is between 90 - 0 degrees or 360 - 270 degrees, i.e. left and right
-                if cos_angle <= 0.5 * math.pi:
+                if cos_angle <= math.pi/2.:
                     if sin_angle < 0:
                         forward_steering_angle = sin_angle #+ 2 * math.pi
                     else:

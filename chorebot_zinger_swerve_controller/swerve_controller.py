@@ -701,6 +701,8 @@ class SwerveController(Node):
         # NOTE DEGREES!!!
         drive_velocity_values_degrees = [math.degrees(v) for v in drive_velocity_values]
 
+        #print(f'Publishing steering angles: {steering_angle_values_deg}')
+
         quad_zero = [0.]*4
         self.publish_joint_command(self.steering_joint_names + self.drive_joint_names, positions=steering_angle_values_deg + quad_zero,
                                    velocities=quad_zero + drive_velocity_values_degrees, effort=[float(100.)]*8)
