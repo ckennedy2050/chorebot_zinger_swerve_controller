@@ -63,7 +63,7 @@ class SwerveController(Node):
 
 
         #self.declare_parameter("motion_estimation_time_span", 1.)
-        self.declare_parameter("motion_estimation_time_span", 0.25)
+        self.declare_parameter("motion_estimation_time_span", 0.1)
         self.motion_time_span = self.get_parameter("motion_estimation_time_span").value
 
         self.declare_parameter("new_motion_tolerance", 0.01)
@@ -454,9 +454,9 @@ class SwerveController(Node):
         if msg == None:
             return
 
-        # self.get_logger().debug(
+        #self.get_logger().info(
         #     f'Received a JointState message: "{msg}"'
-        # )
+        #)
 
         # It would be better if we stored this message and processed it during our own timer loop. That way
         # we wouldn't be blocking the callback.
@@ -466,11 +466,11 @@ class SwerveController(Node):
         joint_velocities: List[float] = [vel for vel in msg.velocity]
 
         ### NOTE: This could be specific to sim
-        for joint_name in joint_names:
-            idx = joint_names.index(joint_name)
-            # Flip the right wheel velocities on incoming
-            if "actuator_wheel_front_right" in joint_name or "actuator_wheel_rear_right" in joint_name:
-                joint_velocities[idx] *= -1.
+        #for joint_name in joint_names:
+        #    idx = joint_names.index(joint_name)
+        #    # Flip the right wheel velocities on incoming
+        #    if "actuator_wheel_front_right" in joint_name or "actuator_wheel_rear_right" in joint_name:
+        #        joint_velocities[idx] *= -1.
         ###
 
 
@@ -496,8 +496,8 @@ class SwerveController(Node):
             else:
                 drive_vel = self.last_drive_module_state[index].drive_velocity_in_module_coordinates.x
 
-            if not updated_value:
-                continue
+            #if not updated_value:
+            #    continue
 
 
 
@@ -596,6 +596,7 @@ class SwerveController(Node):
         self.last_recorded_time = time
 
     def timer_callback(self):
+
         self.store_time_and_update_controller_time()
 
         # TODO: Scale is wrong on published odometry; don't bother publishing until we fix
@@ -623,14 +624,14 @@ class SwerveController(Node):
         # self.controller.min_time_for_profile should be equal to motion_estimation_time_span the parameter
         if running_duration_as_float > self.controller.min_time_for_profile + 1. / self.cycle_time_in_hertz and \
                 not self.controller.had_illegal_acceleration:
-            # self.get_logger().debug(
-            #     'Trajectory completed waiting for next command.'
-            # )
+            #self.get_logger().info(
+            #    'Trajectory completed waiting for next command.'
+            #)
             return
 
         # CK
-        #next_time_step = current_time.nanoseconds * 1e-9 + 1.0  / self.cycle_time_in_hertz
-        next_time_step = current_time.nanoseconds * 1e-9 + self.motion_time_span / self.cycle_time_in_hertz
+        next_time_step = current_time.nanoseconds * 1e-9 + 1.0  / self.cycle_time_in_hertz
+        #next_time_step = current_time.nanoseconds * 1e-9 + self.motion_time_span / self.cycle_time_in_hertz
         # self.get_logger().debug(
         #     'Calculating next step in profile at time {} s'.format(next_time_step)
         # )
@@ -639,6 +640,7 @@ class SwerveController(Node):
 
         # Only publish movement commands if there is a trajectory
         if len(drive_module_states) == 0:
+            print('No drive module states')
             return
 
         position_msg = Float64MultiArray()
@@ -694,14 +696,14 @@ class SwerveController(Node):
 
         # Flip the right wheels on outgoing
         ### NOTE: This might only be for sim
-        drive_velocity_values[0] *= -1.
-        drive_velocity_values[2] *= -1.
+        #drive_velocity_values[0] *= -1.
+        #drive_velocity_values[2] *= -1.
         ###
 
         # NOTE DEGREES!!!
         drive_velocity_values_degrees = [math.degrees(v) for v in drive_velocity_values]
 
-        #print(f'Publishing steering angles: {steering_angle_values_deg}')
+        print(f'Publishing commands - steering: {steering_angle_values_deg} vel: {drive_velocity_values_degrees}')
 
         quad_zero = [0.]*4
         self.publish_joint_command(self.steering_joint_names + self.drive_joint_names, positions=steering_angle_values_deg + quad_zero,

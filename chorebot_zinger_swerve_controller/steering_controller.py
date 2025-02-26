@@ -191,6 +191,7 @@ class ModuleFollowsBodySteeringController():
 
             ###### CK
             # Logic for imposing acceleration scaling
+            """
             if abs(body_state.angular_acceleration.z) > self.max_angular_body_acceleration and \
                     (abs(body_state.linear_velocity.x) > MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD or
                      abs(body_state.linear_velocity.y) > MIN_LINEAR_VELOCITY_SAFETY_THRESHOLD ) and \
@@ -202,7 +203,7 @@ class ModuleFollowsBodySteeringController():
                 body_state.linear_velocity.y *= accel_scalar
                 body_state.angular_velocity.z *= accel_scalar
                 #self.logger(f'  New Body: - vx:{body_state.linear_velocity.x}, vy: {body_state.linear_velocity.y}, vo: {body_state.angular_velocity.z}')
-
+            """
 
             # If we previously had an illegal rotation, check current velocity of each drive module
             # stopped = True
@@ -253,7 +254,7 @@ class ModuleFollowsBodySteeringController():
                 # - first velocity change is larger and second orientation change is larger -> Bad state. Pick the one with the least relative change?
 
                 if abs(first_state_rotation_difference) <= abs(second_state_rotation_difference):
-                    #print(f'{states_for_module[0].name} Diff: {math.degrees(first_state_rotation_difference)}')
+                    #print(f'{states_for_module[0].name} Diff: {math.degrees(first_state_rotation_difference)} deg')
 
                     if abs(first_state_velocity_difference) <= abs(second_state_velocity_difference):
                         # first rotation and velocity change are the smallest, so take the first state
@@ -301,7 +302,7 @@ class ModuleFollowsBodySteeringController():
                             #     )
                             # )
                 else:
-                    #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)}')
+                    #print(f'{states_for_module[1].name}  Diff: {math.degrees(second_state_rotation_difference)} deg')
 
                     if abs(second_state_velocity_difference) <= abs(first_state_velocity_difference):
                         # second rotation and velocity change are the smallest, so take the second state
@@ -371,6 +372,7 @@ class ModuleFollowsBodySteeringController():
                 # Compute acceleration scaling on per module basis
                 # TODO: We should technically divide this by the time fraction diff
                 module_target_accel = desired_state.drive_velocity_in_meters_per_second - self.module_states[i].drive_velocity_in_module_coordinates.x
+                """
                 if abs(module_target_accel) > self.modules[i].drive_motor_maximum_acceleration:
                     self.had_illegal_acceleration = True
                     if module_target_accel > 0.:
@@ -382,7 +384,7 @@ class ModuleFollowsBodySteeringController():
 
                     self.logger(f'Drive acceleration for {desired_state.name} exceeds {self.modules[i].drive_motor_maximum_acceleration} threshold at current velocity {self.module_states[i].drive_velocity_in_module_coordinates.x:.3f},\n    scaling target velocity from {desired_state.drive_velocity_in_meters_per_second:.3f} to {new_target_velocity:.3f}')
                     desired_state.drive_velocity_in_meters_per_second = new_target_velocity
-
+                 """
         else:
             # CK
             assert False, 'Only body motion commands supported'
@@ -494,7 +496,7 @@ class ModuleFollowsBodySteeringController():
             raise TypeError()
 
         if len(current_module_states) != len(self.modules):
-            raise ValueError()
+            raise ValueError(f'# modules: {len(current_module_states)}!!!')
 
         self.previous_module_states = self.module_states
         self.module_states = current_module_states
